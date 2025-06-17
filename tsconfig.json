@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Node",
+    "rewriteRelativeImportExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "outDir": "build",
+    "plugins": [
+      {
+        "transform": "./scripts/extensions.js",
+        "after": true
+      }
+    ]
+  },
+  "include": [
+    "./src"
+  ],
+  "exclude": [
+    "**/*.spec.ts"
+  ]
+}

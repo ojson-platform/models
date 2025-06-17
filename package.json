@@ -1,0 +1,25 @@
+{
+  "name": "sandbox",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "scripts": {
+    "start": "tspc && node build/server",
+    "build": "tspc",
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-node": "^0.202.0",
+    "lodash-es": "^4.17.21"
+  },
+  "devDependencies": {
+    "ts-patch": "^3.3.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.3"
+  }
+}
