@@ -3,17 +3,88 @@ import type { Context } from '../context';
 
 import {URLSearchParams} from 'url';
 
-type Wrapper<CTX extends Context = Context> = (ctx: Context) => CTX;
+/**
+ * A wrapper function that transforms a context type.
+ * Accepts any context type (including extended contexts) and returns a context type.
+ * Uses structural typing to allow wrappers with compatible signatures.
+ */
+type WrapperFunc = (ctx: any) => any;
 
-type Composed<W extends Wrapper[], CTX extends Context> = ReturnType<W[number]> & CTX;
+/**
+ * Extracts the argument type of a wrapper function.
+ */
+type WrapperInput<W> = W extends (ctx: infer Input) => any ? Input : never;
 
-export function compose<W extends Wrapper[]>(wrappers: W) {
-    return function<CTX extends Context>(ctx: CTX) {
+/**
+ * Extracts the return type of a wrapper function.
+ */
+type WrapperOutput<W> = W extends (...args: any[]) => infer Output ? Output : never;
+
+/**
+ * Recursively computes the result type of chained wrapper composition.
+ * Processes wrappers from left to right, building the type chain.
+ * Each wrapper receives the output type of the previous wrapper.
+ * 
+ * Based on the approach from:
+ * https://stackoverflow.com/questions/53173203/typescript-recursive-function-composition
+ * 
+ * This builds a chain where:
+ * - First wrapper: Context -> R1
+ * - Second wrapper: R1 -> R2 (if R1 is compatible)
+ * - Third wrapper: R2 -> R3 (if R2 is compatible)
+ * - Result: final output type
+ */
+type ComposeResult<
+    W extends readonly WrapperFunc[],
+    Acc extends Context = Context
+> = W extends readonly [infer First, ...infer Rest]
+    ? First extends WrapperFunc
+        ? WrapperInput<First> extends Acc
+            ? Rest extends readonly WrapperFunc[]
+                ? ComposeResult<Rest, WrapperOutput<First>>
+                : WrapperOutput<First>
+            : Acc
+        : Acc
+    : Acc;
+
+/**
+ * Composes multiple context wrappers into a single wrapper function.
+ * Each wrapper in the chain receives the enhanced context from the previous wrapper.
+ * 
+ * TypeScript will infer the final context type based on the composition chain.
+ * The type system ensures that each wrapper's input is compatible with the
+ * previous wrapper's output through structural typing.
+ * 
+ * Based on the approach from:
+ * https://stackoverflow.com/questions/53173203/typescript-recursive-function-composition
+ * 
+ * @template W - Array of wrapper functions to compose
+ * @param wrappers - Array of wrapper functions in order of application
+ * @returns Composed wrapper function that applies all wrappers in sequence
+ * 
+ * @example
+ * ```typescript
+ * const wrap = compose([
+ *   withModels(registry),           // Context -> WithModels<Context>
+ *   withCache(config, cache),       // WithModels<Context> -> WithCache<WithModels<Context>>
+ *   withDeadline(5000)              // WithModels<Context> -> WithModels<Context>
+ * ]);
+ * 
+ * const ctx = wrap(new Context('request'));
+ * // ctx type is inferred from the composition chain
+ * ```
+ */
+export function compose<W extends readonly [WrapperFunc, ...Array<WrapperFunc>]>(
+    wrappers: W
+): <CTX extends Context>(ctx: CTX) => ComposeResult<W, CTX> {
+    return function<CTX extends Context>(ctx: CTX): ComposeResult<W, CTX> {
+        let currentCtx: Context = ctx;
+        
         for (const wrapper of wrappers) {
-            ctx = wrapper(ctx) as CTX;
+            currentCtx = wrapper(currentCtx);
         }
 
-        return ctx as Composed<W, CTX>;
+        return currentCtx as ComposeResult<W, CTX>;
     };
 }
 
