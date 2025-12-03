@@ -1,8 +1,8 @@
 import type {CacheProvider} from './cache';
-import type {Key, OJson} from '../types';
+import type {Key, Json} from '../types';
 
 export class MemoryCache implements CacheProvider {
-    private memory = new Map<Key, {value: OJson; deadline: number}>();
+    private memory = new Map<Key, {value: Json; deadline: number}>();
 
     private timer: NodeJS.Timeout;
 
@@ -38,7 +38,7 @@ export class MemoryCache implements CacheProvider {
         return undefined;
     }
 
-    async set(key: Key, value: OJson, ttl: number) {
+    async set(key: Key, value: Json, ttl: number) {
         const deadline = Date.now() + ttl * 1000;
         this.memory.set(key, {value, deadline});
     }

@@ -1,4 +1,4 @@
-import type {Key, Model, OJson} from '../types';
+import type {Key, Model, OJson, Json} from '../types';
 
 import {Dead, withModels} from '../with-models';
 import {Context} from '../context';
@@ -7,8 +7,8 @@ import {compose, sign} from '../utils';
 import {withCache} from './with-cache';
 
 export type CacheProvider = {
-    get(key: Key): Promise<OJson | undefined>;
-    set(key: Key, value: OJson, ttl: number): Promise<void>;
+    get(key: Key): Promise<Json | undefined>;
+    set(key: Key, value: Json, ttl: number): Promise<void>;
 };
 
 export type CacheConfig<Name extends string = 'default'> = {
@@ -43,7 +43,7 @@ export class Cache implements CacheProvider {
         return this.provider.get(key);
     }
 
-    async set(key: Key, value: OJson, ttl: number) {
+    async set(key: Key, value: Json, ttl: number) {
         return this.provider.set(key, value, ttl);
     }
 

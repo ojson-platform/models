@@ -1,6 +1,6 @@
 import type {Context} from '../context';
 import type {WithModels} from '../with-models';
-import type {Model, OJson} from '../types';
+import type {Model, OJson, Json} from '../types';
 import type {Attributes, Span} from '@opentelemetry/api';
 
 import {SpanKind, SpanStatusCode, trace} from '@opentelemetry/api';
@@ -8,7 +8,7 @@ import {api, core} from '@opentelemetry/sdk-node';
 
 export type PropsFilter = '*' | Record<string, boolean | ((key: string, value: unknown) => boolean)>
 
-export type ModelWithTelemetry<Props extends OJson, Result extends OJson> = Model<Props, Result> & {
+export type ModelWithTelemetry<Props extends OJson, Result extends Json> = Model<Props, Result> & {
     displayProps?: PropsFilter;
     displayResult?: PropsFilter;
     displayTags?: Attributes;
@@ -32,7 +32,7 @@ const __Span__ = Symbol('TelSpan');
 const __Handled__ = Symbol('TelErrorHandled');
 
 const wrapRequest = (request: WithModels<Context>['request']) =>
-    async function<Props extends OJson, Result extends OJson>(
+    async function<Props extends OJson, Result extends Json>(
         this: WithTelemetry<WithModels<Context>>,
         model: ModelWithTelemetry<Props, Result>,
         props: Props
