@@ -14,6 +14,8 @@ This is a TypeScript library that provides infrastructure helpers for building s
 - Build: `npm run build` (uses `tspc` TypeScript compiler)
 - Run tests: `npm test` (uses Vitest)
 
+**Note on `tspc`**: This project uses `tspc` (TypeScript Patched Compiler) instead of standard `tsc` because it requires custom TypeScript plugins. The `tsconfig.json` includes a custom transformer plugin (`scripts/extensions.js`) that automatically adds `.js` extensions to relative import paths during compilation, which is required for ES modules compatibility. Standard `tsc` does not support custom plugins, so `tspc` (via `ts-patch`) is used instead.
+
 ## Core Concepts
 
 ### Context
