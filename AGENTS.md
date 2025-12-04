@@ -248,7 +248,13 @@ The `resolve` method is used internally to handle promises. It can be overridden
 
 ## Documentation
 
-- **User documentation**: See `src/with-models/readme.md` for comprehensive user guide with examples
+- **User documentation**: Detailed, user-facing guides live in module READMEs:
+  - `src/with-models/readme.md`
+  - `src/with-cache/readme.md`
+- **README structure**: Module READMEs should follow the common template described in `docs/readme-template.md` (sections: Overview, Key Concepts, Installation, Basic Usage, Advanced Usage, API Overview, Testing Notes, Best Practices, See Also). This AGENTS file is intentionally focused on agent-facing notes and implementation details, not full user guides.
+- **JSDoc style**:
+  - For complex context extension types (e.g. `WithModels`, `WithCache`), use a single JSDoc block with `@property` entries that describe the whole shape.
+  - For interfaces and classes like `CacheProvider`, `CacheConfig`, `Cache`, prefer a brief type-level JSDoc and short per-property/method comments, without duplicating the same information in `@property` lists.
 - **Code documentation**: All public APIs are documented with JSDoc comments
 - **Type definitions**: Full TypeScript support with strict typing for models, props, and results
 

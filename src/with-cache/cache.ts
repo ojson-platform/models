@@ -198,12 +198,13 @@ export class Cache implements CacheProvider {
             try {
                 const ctx = withModels(new Map())(new Context('cache'));
 
-                const value = await ctx.request(model, props);
+                const value: Json | typeof Dead = await ctx.request(model, props);
 
                 if (value === Dead) {
                     return;
                 }
 
+                // After Dead check, value is guaranteed to be Json
                 await this.set(key, value, ttl);
             } finally {
                 // Remove from updates map when done (success or failure)
