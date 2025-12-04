@@ -2,9 +2,7 @@ import type {Key, Model, OJson, Json} from '../types';
 
 import {Dead, withModels} from '../with-models';
 import {Context} from '../context';
-import {compose, sign} from '../utils';
-
-import {withCache} from './with-cache';
+import {sign} from '../utils';
 
 /**
  * Interface for cache storage providers.
@@ -89,6 +87,8 @@ export class Cache implements CacheProvider {
 
     private _provider: CacheProvider;
 
+    private _updates = new Map<Key, Promise<void>>();
+
     /**
      * Gets the cache configuration object.
      * 
@@ -162,8 +162,14 @@ export class Cache implements CacheProvider {
 
     /**
      * Updates the cache by executing a model and storing its result.
-     * Creates a temporary context with model capabilities to execute the model,
+     * Creates a temporary context with model capabilities (without caching) to execute the model,
      * then stores the result in the cache.
+     * 
+     * The model is executed directly without cache strategies to avoid infinite loops
+     * when used in background updates (e.g., in StaleWhileRevalidate strategy).
+     * 
+     * If multiple calls to `update()` are made with the same model and props simultaneously,
+     * only one update will execute and all callers will receive the same promise.
      * 
      * If the model execution is interrupted (returns `Dead`), the cache is not updated.
      * 
@@ -179,19 +185,35 @@ export class Cache implements CacheProvider {
      * ```
      */
     async update(model: Model, props: OJson, ttl: number) {
-        const wrap = compose([
-            withModels(new Map()),
-            withCache(this.config, this._provider),
-        ]);
-        const ctx = wrap(new Context('cache'));
-
         const key = this.key(model, props);
-        const value = await ctx.request(model, props);
 
-        if (value === Dead) {
-            return;
+        // If update is already in progress for this key, return existing promise
+        const existingUpdate = this._updates.get(key);
+        if (existingUpdate) {
+            return existingUpdate;
         }
 
-        await this.set(key, value, ttl);
+        // Create new update promise
+        const updatePromise = (async () => {
+            try {
+                const ctx = withModels(new Map())(new Context('cache'));
+
+                const value = await ctx.request(model, props);
+
+                if (value === Dead) {
+                    return;
+                }
+
+                await this.set(key, value, ttl);
+            } finally {
+                // Remove from updates map when done (success or failure)
+                this._updates.delete(key);
+            }
+        })();
+
+        // Store promise in updates map
+        this._updates.set(key, updatePromise);
+
+        return updatePromise;
     }
 }

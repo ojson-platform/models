@@ -122,6 +122,22 @@ Additional helpers that can be composed with `withModels`:
 
 All helpers follow the same composition pattern and can be chained using the `compose` utility. See individual module implementations for details.
 
+### withCache: agent-facing notes
+
+- **Cache configuration and TTL**:
+  - `CacheConfig` has the shape `{default: {ttl: number}, 'cache-first': {ttl: number}, ...}`.
+  - `Strategy.with()` (e.g. `CacheFirst.with({ttl: 1800})`) accepts **only** the short form `{ttl: number}` and internally wraps it into a per-strategy `CacheConfig`.
+
+- **CacheProvider vs Cache**:
+  - `CacheProvider` is the low-level storage (`get(key)`, `set(key, value, ttl)`).
+  - `Cache` wraps a `CacheProvider` and adds `key()`, `get()`, `set()`, `update()` helpers.
+  - When composing helpers (e.g. in `Cache.update`), always pass the underlying provider into `withCache`, not the `Cache` itself (`withCache(config, this._provider)`), otherwise you risk recursive wrapping.
+
+- **CacheFirst strategy behavior**:
+  - Uses `CacheOnly` + `NetworkOnly`:
+    - cache miss → calls the model, then `cache.set(key, value, ttl)` if `shouldCache()` is `true`.
+    - cache hit → returns the cached value from `cache.get` and **does not** call `cache.set`.
+
 ## Composing Helpers
 
 Use the `compose` utility to combine multiple helpers:
@@ -148,6 +164,7 @@ Note: `compose` is exported from `src/utils/index.ts` but not from the main pack
 - Use functional patterns where possible
 - Models are pure functions (deterministic)
 - Prefer composition over inheritance
+- **All comments must be in English** (including test comments and inline documentation)
 
 ## Testing Instructions
 
@@ -206,6 +223,11 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - Errors are captured in context (`ctx.fail(error)`)
 - Failed contexts are still tracked in registry
 - Promises in registry are cleaned up on rejection
+
+### disableCache and memoization
+
+- `disableCache()` turns off the `withCache` strategies for the context (i.e. cache providers are not written to), but **does not disable** memoization provided by `withModels`.
+- Within the same context, repeated calls to the same model with the same props will still be served from the `withModels` registry, regardless of the cache strategy state.
 
 ## Development Workflow
 
