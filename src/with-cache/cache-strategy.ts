@@ -2,11 +2,11 @@
 import type {Model, OJson, Json} from '../types';
 import type {Context} from '../context';
 import type {Request, WithModels} from '../with-models';
-import {Dead} from '../with-models';
-import type {Cache, CacheConfig} from './cache';
+import type {Cache, CacheConfig, CacheProvider} from './cache';
 import type {WithCache} from './with-cache';
 
 import {get} from 'lodash-es';
+import {Dead} from '../with-models';
 
 /**
  * Helper function to check if a value is empty (undefined).
@@ -25,33 +25,17 @@ const isEmptyValue = (target: any): target is undefined => target === undefined;
 const isDead = (target: any): target is typeof Dead => target === Dead;
 
 /**
- * Helper that executes the model via the provided network request function and
- * conditionally writes the result to cache.
- *
- * Shared between CacheFirst and StaleWhileRevalidate for cache-miss handling.
- * Ensures that:
- * - Dead values are never cached
- * - `shouldCache()` is respected
- *
+ * Gets the name of a cache provider for logging purposes.
+ * Attempts to get constructor name, falls back to 'unknown'.
+ * 
  * @internal
  */
-const fetchAndCacheOnMiss = async (
-    ctx: WithCache<WithModels<Context>>,
-    cache: Cache,
-    ttl: number,
-    fromNetwork: Request,
-    model: Model,
-    props: OJson
-): Promise<Json | typeof Dead> => {
-    const key = cache.key(model, props);
-    const value: Json | typeof Dead = await fromNetwork.call(ctx, model, props);
-
-    // Don't cache Dead values (execution was interrupted)
-    if (ctx.shouldCache() && !isDead(value)) {
-        cache.set(key, value, ttl).catch(() => {});
+const getProviderName = (provider: CacheProvider): string => {
+    if (provider && typeof provider === 'object' && provider.displayName) {
+        return provider.displayName;
     }
 
-    return value;
+    return 'unknown';
 };
 
 /**
@@ -116,7 +100,7 @@ export type CacheStrategy = StrategyResolver & {
 const Strategy = (displayName: string, call: StrategyResolver): CacheStrategy => {
     const strategy = Object.assign(call.bind(undefined), {
         displayName,
-        config: {},
+        config: {} as CacheConfig,
         with: (config: CacheConfig[keyof CacheConfig]) => {
             // Wrap the TTL config in strategy-specific config
             const wrappedConfig: CacheConfig = {
@@ -193,7 +177,7 @@ export const CacheOnly = Strategy('cache-only', (_config, cache) => {
  * // Always executes the model, never reads from cache
  * ```
  */
-export const NetworkOnly = Strategy('network-only', (_config, cache, request) => {
+export const NetworkOnly = Strategy('network-only', (_config, _cache, request) => {
     return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
         return request.call(this, model, props);
     };
@@ -232,14 +216,37 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
     const ttl = getTTL(CacheFirst as unknown as CacheStrategy, config as CacheConfig);
     const fromCache = CacheOnly(config, cache, request);
     const fromNetwork = NetworkOnly(config, cache, request);
+    const providerName = getProviderName(cache.provider);
 
     return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {
-            return fetchAndCacheOnMiss(this, cache, ttl, fromNetwork, model, props);
+            this.event('cache.miss', {
+                strategy: 'cache-first',
+                provider: providerName,
+            });
+
+            const key = cache.key(model, props);
+            const value: Json | typeof Dead = await fromNetwork.call(this, model, props);
+        
+            // Don't cache Dead values (execution was interrupted)
+            if (this.shouldCache() && !isDead(value)) {
+                cache.set(key, value, ttl).catch(() => {});
+        
+                this.event('cache.update', {
+                    strategy: 'cache-first',
+                    provider: providerName,
+                });
+            }
+        
+            return value;
         }
 
+        this.event('cache.hit', {
+            strategy: 'cache-first',
+            provider: providerName,
+        });
         return cachedResult as Json | typeof Dead;
     };
 });
@@ -285,17 +292,47 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
     const ttl = getTTL(StaleWhileRevalidate as unknown as CacheStrategy, config as CacheConfig);
     const fromCache = CacheOnly(config, cache, request);
     const fromNetwork = NetworkOnly(config, cache, request);
+    const providerName = getProviderName(cache.provider);
 
     return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {
-            return fetchAndCacheOnMiss(this, cache, ttl, fromNetwork, model, props);
+            this.event('cache.miss', {
+                strategy: 'stale-while-revalidate',
+                provider: providerName,
+            });
+            
+            const key = cache.key(model, props);
+            const value: Json | typeof Dead = await fromNetwork.call(this, model, props);
+        
+            // Don't cache Dead values (execution was interrupted)
+            if (this.shouldCache() && !isDead(value)) {
+                cache.set(key, value, ttl).catch(() => {});
+        
+                this.event('cache.update', {
+                    strategy: 'stale-while-revalidate',
+                    provider: providerName,
+                    ttl,
+                });
+            }
+        
+            return value;
         }
+
+        this.event('cache.hit', {
+            strategy: 'stale-while-revalidate',
+            provider: providerName,
+        });
 
         // Background update - cache.update already handles Dead internally
         if (this.shouldCache()) {
             cache.update(model, props, ttl).catch(() => {});
+            this.event('cache.update', {
+                strategy: 'stale-while-revalidate',
+                provider: providerName,
+                ttl,
+            });
         }
 
         return cachedResult as Json | typeof Dead;

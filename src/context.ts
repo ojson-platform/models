@@ -64,4 +64,25 @@ export class Context {
             throw error;
         }
     }
+
+    /**
+     * Emits an event for observability purposes.
+     * 
+     * This is a no-op by default and can be overridden by telemetry helpers
+     * (e.g., `withTelemetry`) to record events in traces.
+     * 
+     * Other helpers (e.g., `withCache`) can call this method to log events
+     * without knowing if telemetry is enabled.
+     * 
+     * @param name - Event name (e.g., 'cache.hit', 'cache.miss', 'cache.update')
+     * @param attributes - Optional attributes to attach to the event
+     * 
+     * @example
+     * ```typescript
+     * ctx.event('cache.hit', { key: 'model-key', ttl: 3600 });
+     * ```
+     */
+    event(name: string, attributes?: Record<string, unknown>): void {
+        // No-op by default
+    }
 }

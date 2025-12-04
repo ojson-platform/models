@@ -419,4 +419,116 @@ describe('withTelemetry', () => {
         const resultCalls = addEventSpy.mock.calls.filter(call => call[0] === 'result');
         expect(resultCalls.length).toBeGreaterThan(0);
     });
+
+    it('should record custom events via ctx.event()', () => {
+        const ctx = createContext();
+        const span = (ctx as any)[__TelSpan__];
+        const addEventSpy = vi.spyOn(span, 'addEvent');
+
+        ctx.event('resolved from cache', {key: 'model-key', ttl: 3600});
+
+        expect(addEventSpy).toHaveBeenCalledTimes(1);
+        expect(addEventSpy).toHaveBeenCalledWith('resolved from cache', {
+            key: 'model-key',
+            ttl: 3600,
+        });
+    });
+
+    it('should record events without attributes', () => {
+        const ctx = createContext();
+        const span = (ctx as any)[__TelSpan__];
+        const addEventSpy = vi.spyOn(span, 'addEvent');
+
+        ctx.event('cache miss');
+
+        expect(addEventSpy).toHaveBeenCalledTimes(1);
+        expect(addEventSpy).toHaveBeenCalledWith('cache miss');
+    });
+
+    it('should filter invalid attribute values when recording events', () => {
+        const ctx = createContext();
+        const span = (ctx as any)[__TelSpan__];
+        const addEventSpy = vi.spyOn(span, 'addEvent');
+
+        ctx.event('test event', {
+            validString: 'value',
+            validNumber: 123,
+            invalidObject: {nested: 'object'},
+            validBoolean: true,
+        });
+
+        expect(addEventSpy).toHaveBeenCalledTimes(1);
+        const callArgs = addEventSpy.mock.calls[0];
+        expect(callArgs[0]).toBe('test event');
+        const attributes = callArgs[1] as Record<string, unknown>;
+        expect(attributes.validString).toBe('value');
+        expect(attributes.validNumber).toBe(123);
+        expect(attributes.validBoolean).toBe(true);
+        expect(attributes.invalidObject).toBeUndefined();
+    });
+
+    it('should work when withTelemetry is not enabled (no-op)', () => {
+        const registry = new Map();
+        const wrap = compose([
+            withModels(registry),
+            // withTelemetry is not included
+        ]);
+
+        const ctx = wrap(new Context('test-request'));
+
+        // Should not throw, even though withTelemetry is not enabled
+        expect(() => {
+            ctx.event('test event', {key: 'value'});
+        }).not.toThrow();
+    });
+
+    it('should record events in child contexts', () => {
+        const parent = createContext();
+        const child = parent.create('child-request');
+        const childSpan = (child as any)[__TelSpan__];
+        const addEventSpy = vi.spyOn(childSpan, 'addEvent');
+
+        child.event('child event', {data: 'value'});
+
+        expect(addEventSpy).toHaveBeenCalledTimes(1);
+        expect(addEventSpy).toHaveBeenCalledWith('child event', {data: 'value'});
+    });
+
+    it('should record cache events from withCache without direct coupling', async () => {
+        const {withCache} = await import('../with-cache/with-cache');
+        const {CacheFirst} = await import('../with-cache/cache-strategy');
+        const {TrackingCacheProvider} = await import('../with-cache/__tests__/cache-provider');
+
+        const cache = new TrackingCacheProvider();
+        const registry = new Map();
+        const wrap = compose([
+            withModels(registry),
+            withCache({default: {ttl: 3600}}, cache),
+            withTelemetry({serviceName: 'test-service'}),
+        ]);
+
+        const ctx = wrap(new Context('request'));
+        const span = (ctx as any)[__TelSpan__];
+        const addEventSpy = vi.spyOn(span, 'addEvent');
+
+        const model = vi.fn(() => ({result: 'ok'})) as unknown as Model;
+        model.displayName = 'TestModel';
+        (model as any).cacheStrategy = CacheFirst.with({ttl: 3600});
+
+        // First call - cache miss
+        await ctx.request(model, {id: 1});
+        expect(addEventSpy).toHaveBeenCalledWith('cache.miss', {
+            strategy: 'cache-first',
+            provider: 'TrackingCacheProvider',
+        });
+
+        // Second call - cache hit
+        await ctx.request(model, {id: 1});
+        expect(addEventSpy).toHaveBeenCalledWith('cache.hit', {
+            strategy: 'cache-first',
+            provider: 'TrackingCacheProvider',
+        });
+
+        cache.release();
+    });
 });

@@ -52,6 +52,22 @@ export type WithTelemetry<T extends WithModels<Context>> = T & {
     [__ModelResult__]: (result: Attributes) => Span;
     /** @internal Records error in span event */
     [__ModelError__]: (error: unknown) => Span;
+    /**
+     * Emits an event that will be recorded in the OpenTelemetry span.
+     * 
+     * This method is used by other helpers (e.g., `withCache`) to log events
+     * without knowing if telemetry is enabled. If telemetry is not enabled,
+     * the base `Context.event()` no-op method is used.
+     * 
+     * @param name - Event name (e.g., 'cache.hit', 'cache.miss', 'cache.update')
+     * @param attributes - Optional attributes to attach to the event
+     * 
+     * @example
+     * ```typescript
+     * ctx.event('cache.hit', { key: 'model-key', ttl: 3600 });
+     * ```
+     */
+    event(name: string, attributes?: Record<string, unknown>): void;
 };
 
 /**
@@ -100,6 +116,30 @@ const wrapRequest = (request: WithModels<Context>['request']) =>
         }
 
         return value;
+    };
+
+/**
+ * @internal
+ * Wraps the context's event method to record events in the OpenTelemetry span.
+ */
+const wrapEvent = (event: Context['event'], span: Span) =>
+    function(this: WithTelemetry<WithModels<Context>>, name: string, attributes?: Record<string, unknown>) {
+        // Call the original event method (in case there's any additional logic)
+        event.call(this, name, attributes);
+
+        // Record the event in the span
+        if (attributes) {
+            // Filter attributes to only include valid OpenTelemetry attribute values
+            const validAttributes: Attributes = {};
+            for (const [key, value] of Object.entries(attributes)) {
+                if (core.isAttributeValue(value)) {
+                    validAttributes[key] = value;
+                }
+            }
+            span.addEvent(name, validAttributes);
+        } else {
+            span.addEvent(name);
+        }
     };
 
 /**
@@ -157,6 +197,7 @@ const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, config: Telemetr
         request: wrapRequest(ctx.request),
         end: wrapEnd(ctx.end),
         fail: wrapFail(ctx.fail),
+        event: wrapEvent(ctx.event, span),
         [__Span__]: span,
         [__ModelProps__]: (props: Attributes) => span.setAttributes(props),
         [__ModelResult__]: (result: Attributes) => span.addEvent('result', result),

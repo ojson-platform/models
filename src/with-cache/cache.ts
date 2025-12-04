@@ -22,6 +22,8 @@ import {sign} from '../utils';
  * ```
  */
 export type CacheProvider = {
+    displayName?: string;
+
     /**
      * Retrieves a cached value by key.
      * 
