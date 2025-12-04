@@ -138,6 +138,15 @@ All helpers follow the same composition pattern and can be chained using the `co
     - cache miss → calls the model, then `cache.set(key, value, ttl)` if `shouldCache()` is `true`.
     - cache hit → returns the cached value from `cache.get` and **does not** call `cache.set`.
 
+### withOverrides: agent-facing notes
+
+- `withOverrides(overrides)` wraps a `WithModels` context and replaces models according to a `Map<Model, Model>`.
+- Overrides are resolved transitively:
+  - if A → B and B → C, then requests for A and B both delegate to C.
+- Overrides are applied at the `request` level only:
+  - memoization still happens at the final model + props key.
+- `ctx.create` is wrapped so that child contexts inherit the same overrides.
+
 ## Composing Helpers
 
 Use the `compose` utility to combine multiple helpers:
