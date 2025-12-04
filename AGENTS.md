@@ -238,6 +238,18 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - `disableCache()` turns off the `withCache` strategies for the context (i.e. cache providers are not written to), but **does not disable** memoization provided by `withModels`.
 - Within the same context, repeated calls to the same model with the same props will still be served from the `withModels` registry, regardless of the cache strategy state.
 
+### withTelemetry: agent-facing notes
+
+- `withTelemetry(config)` wraps a `WithModels` context and adds OpenTelemetry tracing:
+  - Creates a span for each context (named after `ctx.name`)
+  - Sets up parent-child span relationships based on context hierarchy
+  - Records model props/result/errors as span attributes and events
+  - Marks spans as failed when `ctx.fail()` is called
+- Models can optionally provide telemetry configuration via `displayProps`, `displayResult`, and `displayTags` properties.
+- Props are recorded before model execution, results after (if not `Dead`).
+- Only object errors get error events (strings and primitives only set status).
+- `ctx.create` is wrapped so that child contexts inherit telemetry and create child spans.
+
 ### withDeadline: agent-facing notes
 
 - `withDeadline(timeout)` wraps a `WithModels` context and races `ctx.resolve` against a timer:
