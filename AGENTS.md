@@ -229,6 +229,16 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - `disableCache()` turns off the `withCache` strategies for the context (i.e. cache providers are not written to), but **does not disable** memoization provided by `withModels`.
 - Within the same context, repeated calls to the same model with the same props will still be served from the `withModels` registry, regardless of the cache strategy state.
 
+### withDeadline: agent-facing notes
+
+- `withDeadline(timeout)` wraps a `WithModels` context and races `ctx.resolve` against a timer:
+  - if the timer wins, it calls `ctx.kill()`;
+  - in-flight `ctx.request` calls then observe `Dead` according to `withModels` semantics.
+- `timeout <= 0` is treated as a no-op: the context is returned unchanged.
+- Helpers should typically be composed in this order:
+  - `withModels` → other helpers (`withCache`, `withOverrides`, `withTelemetry`) → `withDeadline`.
+- `withDeadline` does not change memoization or cache behavior, it only controls how long we wait for async model resolutions.
+
 ## Development Workflow
 
 1. Make changes to source files in `src/`
