@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "outDir": "build",
+    "skipLibCheck": true,
     "plugins": [
       {
         "transform": "./scripts/extensions.js",
@@ -19,6 +20,7 @@
     "./src"
   ],
   "exclude": [
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "node_modules"
   ]
 }
