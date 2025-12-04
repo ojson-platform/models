@@ -1,17 +1,39 @@
 {
-  "name": "sandbox",
-  "type": "module",
+  "name": "@ojson/models",
   "version": "1.0.0",
+  "description": "Declarative data retrieval with automatic memoization for server-side TypeScript applications",
+  "type": "module",
   "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js"
+    }
+  },
+  "files": [
+    "build",
+    "README.md",
+    "AGENTS.md"
+  ],
   "scripts": {
-    "start": "tspc && node build/server",
+    "prebuild": "rm -rf build",
     "build": "tspc",
     "test": "vitest"
   },
-  "keywords": [],
+  "keywords": [
+    "models",
+    "memoization",
+    "declarative",
+    "server-side",
+    "typescript",
+    "express",
+    "caching",
+    "telemetry",
+    "opentelemetry"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/sdk-node": "^0.202.0",

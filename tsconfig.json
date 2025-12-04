@@ -8,6 +8,8 @@
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "outDir": "build",
+    "declaration": true,
+    "declarationMap": true,
     "skipLibCheck": true,
     "plugins": [
       {

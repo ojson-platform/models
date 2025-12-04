@@ -32,14 +32,12 @@ ctx.fail(error); // Mark as failed with error
 ### OJson Type
 
 OJson (Object JSON) is a subset of JSON where the top level is always an object:
-- Primitives: `null | number | string`
-- Arrays of primitives
-- Nested objects (no circular references in practice)
 - **Top level must be an object** (unlike JSON which can be any value)
+- Values can be any JSON-serializable value (Json): primitives, arrays, nested objects, etc.
 
 ```typescript
 type OJson = {
-  [prop: string]: Primitive | Primitive[] | OJson;
+  [prop: string]: Json;
 };
 ```
 

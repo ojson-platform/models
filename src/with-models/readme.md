@@ -22,10 +22,14 @@ A **Model** is a deterministic function that transforms input parameters (`OJson
 
 OJson (Object JSON) is a subset of JSON where the top level is always an object. This restriction ensures predictable parameter structures for models:
 
-- Primitives: `null | number | string`
-- Arrays of primitives
-- Nested objects (no circular references in practice)
 - **Top level must be an object** (unlike JSON which can be any value)
+- Values can be any JSON-serializable value (Json): primitives, arrays, nested objects, etc.
+
+```typescript
+type OJson = {
+  [prop: string]: Json;
+};
+```
 
 This format is used for model input parameters to enable deterministic serialization for cache keys.
 
