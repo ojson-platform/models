@@ -14,6 +14,8 @@ export class TrackingCacheProvider implements CacheProvider {
     public get: CacheProvider['get'];
     public set: CacheProvider['set'];
 
+    displayName = 'TrackingCacheProvider';
+
     constructor() {
         this.provider = new MemoryCache();
         

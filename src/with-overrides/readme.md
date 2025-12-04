@@ -175,5 +175,12 @@ Key scenarios for `withOverrides`:
 - **Child contexts**:
   - overrides work the same way in parent and child contexts created via `ctx.create`.
 
-See `src/with-overrides/with-overrides.spec.ts` for concrete examples. 
+See `src/with-overrides/with-overrides.spec.ts` for concrete examples.
+
+## See Also
+
+- [withModels](../with-models/readme.md) - Core memoization helper (required dependency)
+- [withCache](../with-cache/readme.md) - Adds caching layer
+- [withDeadline](../with-deadline/readme.md) - Adds timeout/deadline support
+- [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration
 

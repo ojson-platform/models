@@ -424,4 +424,5 @@ if (ctx.isAlive()) {
 - [withCache](../with-cache/readme.md) - Caching layer for models
 - [withDeadline](../with-deadline/readme.md) - Timeout/deadline support
 - [withOverrides](../with-overrides/readme.md) - Model substitution for testing
+- [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration
 

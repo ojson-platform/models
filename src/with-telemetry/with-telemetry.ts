@@ -187,9 +187,23 @@ const wrapFail = (fail: WithModels<Context>['fail']) =>
  * Wraps a context to add OpenTelemetry tracing capabilities.
  * Creates a span for the context and sets up parent-child relationships.
  */
+/**
+ * @internal
+ * Safely retrieves the parent span if the parent context has telemetry enabled.
+ */
+function getParentSpan(parent: Context | undefined): Span | undefined {
+    if (!parent) {
+        return undefined;
+    }
+    // Check if parent has telemetry (has __Span__ symbol)
+    const parentSpan = (parent as WithTelemetry<WithModels<Context>>)[__Span__];
+    return parentSpan;
+}
+
 const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, config: TelemetryConfig) => {
     const tracer = trace.getTracer(config.serviceName);
-    const context = trace.setSpan(api.context.active(), ctx.parent && ctx.parent[__Span__]);
+    const parentSpan = getParentSpan(ctx.parent);
+    const context = trace.setSpan(api.context.active(), parentSpan);
     const span = tracer.startSpan(ctx.name, {kind: SpanKind.INTERNAL}, context);
 
     Object.assign(ctx, {
@@ -210,36 +224,6 @@ const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, config: Telemetr
     return ctx as WithTelemetry<CTX>;
 };
 
-/**
- * Factory function that enhances a `WithModels` context with OpenTelemetry tracing.
- *
- * It automatically creates spans for contexts and tracks model execution:
- * - Creates a span for each context (named after `ctx.name`)
- * - Sets up parent-child span relationships based on context hierarchy
- * - Records model props/result/errors as span attributes and events
- * - Marks spans as failed when `ctx.fail()` is called
- *
- * Models can optionally provide telemetry configuration via:
- * - `displayProps` - Which props fields to include in span attributes
- * - `displayResult` - Which result fields to include in span events
- * - `displayTags` - Additional static attributes to add to spans
- *
- * This helper is typically composed after `withModels` using `compose`.
- *
- * @param config - Telemetry configuration with service name
- * @returns Wrapper function that adds tracing capabilities to a `WithModels` context
- *
- * @example
- * ```typescript
- * const wrap = compose([
- *   withModels(registry),
- *   withTelemetry({serviceName: 'my-api'}),
- * ]);
- *
- * const ctx = wrap(new Context('request'));
- * await ctx.request(MyModel); // Creates span for context and model execution
- * ```
- */
 /**
  * Factory function that enhances a `WithModels` context with OpenTelemetry tracing.
  *

@@ -155,3 +155,10 @@ Key scenarios for `withDeadline`:
 
 See `src/with-deadline/with-deadline.spec.ts` for concrete examples.
 
+## See Also
+
+- [withModels](../with-models/readme.md) - Core memoization helper (required dependency)
+- [withCache](../with-cache/readme.md) - Adds caching layer
+- [withOverrides](../with-overrides/readme.md) - Model substitution for testing
+- [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration
+

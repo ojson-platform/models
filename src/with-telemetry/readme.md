@@ -251,8 +251,8 @@ See `src/with-telemetry/with-telemetry.spec.ts` for examples.
 
 ## See Also
 
-- `withModels` - Core memoization helper (required dependency)
-- `withDeadline` - Adds timeout/deadline support
-- `withCache` - Adds caching layer
-- `withOverrides` - Model substitution for testing
+- [withModels](../with-models/readme.md) - Core memoization helper (required dependency)
+- [withCache](../with-cache/readme.md) - Adds caching layer
+- [withDeadline](../with-deadline/readme.md) - Adds timeout/deadline support
+- [withOverrides](../with-overrides/readme.md) - Model substitution for testing
 

@@ -259,4 +259,10 @@ Key testing scenarios:
 - correct TTL handling (including invalid config cases);
 - deduplication of background updates in `Cache.update`.
 
+## See Also
+
+- [withModels](../with-models/readme.md) - Core memoization helper (required dependency)
+- [withDeadline](../with-deadline/readme.md) - Adds timeout/deadline support
+- [withOverrides](../with-overrides/readme.md) - Model substitution for testing
+- [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration (records cache events)
 
