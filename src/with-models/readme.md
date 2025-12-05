@@ -55,7 +55,9 @@ import {Context} from './context';
 Create a registry once per request lifecycle:
 
 ```typescript
-const registry = new Map();
+import type {Key} from '@ojson/models';
+
+const registry = new Map<Key, Promise<unknown>>();
 ```
 
 ### 2. Enhance Context
@@ -63,19 +65,28 @@ const registry = new Map();
 Wrap your context with model capabilities:
 
 ```typescript
+import {Context, withModels} from '@ojson/models';
+
 const baseCtx = new Context('request');
 const ctx = withModels(registry)(baseCtx);
 ```
 
 ### 3. Define a Model
 
-Models must have a static `displayName` property:
+Models must have a static `displayName` property. For proper type inference, use explicit type annotations:
 
 ```typescript
-function RequestParams(props, ctx) {
+import type {OJson, Context} from '@ojson/models';
+
+interface RequestParamsResult extends OJson {
+  userId: string;
+  isTesting: boolean;
+}
+
+function RequestParams(props: OJson, ctx: Context & {req: {query: {userId?: string; isTesting?: string}}}): RequestParamsResult {
   return {
-    userId: ctx.req.query.userId,
-    isTesting: ctx.req.query.isTesting
+    userId: ctx.req.query.userId || '',
+    isTesting: ctx.req.query.isTesting === 'true'
   };
 }
 
@@ -99,7 +110,14 @@ const user = await ctx.request(UserModel, {id: params.userId});
 Returns a plain object directly:
 
 ```typescript
-function ConfigModel(props, ctx) {
+import type {OJson, Context, Json} from '@ojson/models';
+
+interface ConfigResult extends OJson {
+  env: string | undefined;
+  version: string | undefined;
+}
+
+function ConfigModel(props: OJson, ctx: Context): ConfigResult {
   return {
     env: process.env.NODE_ENV,
     version: process.env.APP_VERSION
@@ -113,9 +131,21 @@ ConfigModel.displayName = 'ConfigModel';
 Returns a Promise:
 
 ```typescript
-async function UserModel(props, ctx) {
+import type {OJson, Context, Json} from '@ojson/models';
+
+interface UserModelProps extends OJson {
+  id: string;
+}
+
+interface User extends OJson {
+  id: string;
+  name: string;
+  email: string;
+}
+
+async function UserModel(props: UserModelProps, ctx: Context): Promise<User> {
   const response = await fetch(`/api/users/${props.id}`);
-  return await response.json();
+  return await response.json() as User;
 }
 UserModel.displayName = 'UserModel';
 ```
@@ -125,11 +155,23 @@ UserModel.displayName = 'UserModel';
 Returns a Generator for multi-step operations:
 
 ```typescript
-function* DataPipelineModel(props, ctx) {
-  const raw = yield fetch(`/api/data/${props.id}`);
-  const processed = yield processData(raw);
-  const validated = yield validateData(processed);
-  return validated;
+import type {OJson, Context, Json} from '@ojson/models';
+
+interface DataPipelineProps extends OJson {
+  id: string;
+}
+
+interface ProcessedData extends OJson {
+  id: string;
+  processed: boolean;
+  validated: boolean;
+}
+
+function* DataPipelineModel(props: DataPipelineProps, ctx: Context): Generator<Promise<Json> | Json, ProcessedData> {
+  const raw = yield fetch(`/api/data/${props.id}`) as Promise<Json>;
+  const processed = yield processData(raw) as Json;
+  const validated = yield validateData(processed) as Json;
+  return validated as ProcessedData;
 }
 DataPipelineModel.displayName = 'DataPipelineModel';
 ```
@@ -139,9 +181,19 @@ DataPipelineModel.displayName = 'DataPipelineModel';
 Models can also be objects with an `action` method:
 
 ```typescript
-const MyModel = {
+import type {OJson, Context, Json, Model} from '@ojson/models';
+
+interface MyModelProps extends OJson {
+  value: string;
+}
+
+interface MyModelResult extends OJson {
+  result: string;
+}
+
+const MyModel: Model<MyModelProps, MyModelResult> = {
   displayName: 'MyModel',
-  action(props, ctx) {
+  action(props: MyModelProps, ctx: Context): MyModelResult {
     return {result: props.value};
   }
 };
@@ -160,6 +212,7 @@ const result1 = await ctx.request(ExpensiveModel, {id: 123});
 // Second call with same params - returns cached result
 const result2 = await ctx.request(ExpensiveModel, {id: 123});
 // result1 === result2 (same reference, model not called again)
+// TypeScript infers: result1 and result2 have the same type as ExpensiveModel's return type
 ```
 
 ### Different Parameters = Different Cache
@@ -175,8 +228,10 @@ await ctx.request(UserModel, {id: 1}); // Returns cached
 Within a single request lifecycle, multiple contexts can share the same registry to enable memoization across nested contexts:
 
 ```typescript
+import {Context, withModels, type Key} from '@ojson/models';
+
 // Within a single request
-const registry = new Map();
+const registry = new Map<Key, Promise<unknown>>();
 
 const ctx1 = withModels(registry)(new Context('request1'));
 const ctx2 = withModels(registry)(new Context('request2'));
@@ -193,7 +248,28 @@ await ctx2.request(UserModel, {id: 123}); // Returns cached from ctx1
 Models can call other models through the context, leveraging memoization:
 
 ```typescript
-async function CompositeModel(props, ctx) {
+import type {OJson, Context, Json} from '@ojson/models';
+
+interface CompositeModelProps extends OJson {
+  userId: string;
+}
+
+interface UserData extends OJson {
+  id: string;
+  role: string;
+}
+
+interface Permissions extends OJson {
+  canRead: boolean;
+  canWrite: boolean;
+}
+
+interface CompositeResult extends OJson {
+  user: UserData;
+  permissions: Permissions;
+}
+
+async function CompositeModel(props: CompositeModelProps, ctx: Context): Promise<CompositeResult> {
   // If UserData was already called elsewhere, this returns cached result
   const userData = await ctx.request(UserDataModel, {id: props.userId});
   const permissions = await ctx.request(PermissionsModel, {role: userData.role});
@@ -213,10 +289,18 @@ CompositeModel.displayName = 'CompositeModel';
 Interrupt execution at any point:
 
 ```typescript
+import {InterruptedError} from '@ojson/models';
+
 ctx.kill(); // Marks context as dead
 
-const result = await ctx.request(SomeModel);
-// result === Dead (execution was cancelled)
+try {
+  const result = await ctx.request(SomeModel);
+} catch (error) {
+  // Throws InterruptedError when execution is cancelled
+  if (error instanceof InterruptedError) {
+    console.log('Execution was cancelled');
+  }
+}
 ```
 
 ### Check if Alive
@@ -233,41 +317,78 @@ if (ctx.isAlive()) {
 ### Express.js
 
 ```typescript
-import express from 'express';
-import {Context} from './context';
-import {withModels} from './with-models';
+import express, {type Request, type Response} from 'express';
+import {Context, withModels, compose, withDeadline, InterruptedError, type WithModels, type Key} from '@ojson/models';
+import type {OJson} from '@ojson/models';
+
+// Расширяем Express Request
+declare global {
+  namespace Express {
+    interface Request {
+      ctx: WithModels<Context & {req: Request; res: Response}>;
+      deadline: number;
+    }
+  }
+}
 
 const app = express();
 
-function RequestParams(props, ctx) {
+// Middleware для deadline
+app.use((req: Request, res: Response, next) => {
+  const deadlineHeader = req.headers['x-request-deadline'];
+  req.deadline = deadlineHeader ? parseInt(deadlineHeader as string, 10) : 30000;
+  next();
+});
+
+// Middleware для создания контекста
+app.use((req: Request, res: Response, next) => {
+  const registry = new Map<Key, Promise<unknown>>();
+  const baseCtx = new Context(`http-${req.method.toLowerCase()}-${req.path}`) as Context & {req: Request; res: Response};
+  baseCtx.req = req;
+  baseCtx.res = res;
+  
+  req.ctx = compose([
+    withModels(registry),
+    withDeadline(req.deadline),
+  ])(baseCtx);
+  
+  next();
+});
+
+interface RequestParamsResult extends OJson {
+  userId: string;
+  token: string | undefined;
+}
+
+function RequestParams(props: OJson, ctx: Context & {req: Request}): RequestParamsResult {
   return {
-    userId: ctx.req.query.userId,
+    userId: (ctx.req.query.userId as string) || '',
     token: ctx.req.headers.authorization
   };
 }
 RequestParams.displayName = 'RequestParams';
 
-async function AuthModel(props, ctx) {
+interface AuthModelProps extends OJson {
+  token: string | undefined;
+}
+
+interface AuthResult extends OJson {
+  valid: boolean;
+  userId?: string;
+}
+
+async function AuthModel(props: AuthModelProps, ctx: Context): Promise<AuthResult> {
   const response = await fetch(`/api/auth/verify`, {
-    headers: {Authorization: props.token}
+    headers: {Authorization: props.token || ''}
   });
-  return await response.json();
+  return await response.json() as AuthResult;
 }
 AuthModel.displayName = 'AuthModel';
 
-app.get('/api/user', async (req, res) => {
-  // Create a new registry for each request (memoization works only within a single request)
-  const registry = new Map();
-  
-  const baseCtx = new Context('http-get');
-  baseCtx.req = req;
-  baseCtx.res = res;
-  
-  const ctx = withModels(registry)(baseCtx);
-  
+app.get('/api/user', async (req: Request, res: Response) => {
   try {
-    const params = await ctx.request(RequestParams);
-    const auth = await ctx.request(AuthModel, {token: params.token});
+    const params = await req.ctx.request(RequestParams) as RequestParamsResult;
+    const auth = await req.ctx.request(AuthModel, {token: params.token});
     
     if (!auth.valid) {
       return res.status(401).json({error: 'Unauthorized'});
@@ -275,9 +396,13 @@ app.get('/api/user', async (req, res) => {
     
     res.json({userId: params.userId, auth});
   } catch (error) {
-    res.status(500).json({error: error.message});
+    req.ctx.fail(error);
+    if (error instanceof InterruptedError) {
+      return res.status(503).json({error: 'Service unavailable'});
+    }
+    res.status(500).json({error: (error as Error).message});
   } finally {
-    ctx.end();
+    req.ctx.end();
   }
 });
 ```
@@ -287,15 +412,24 @@ app.get('/api/user', async (req, res) => {
 Generators support nested generators and promises:
 
 ```typescript
-function* Step1(props, ctx) {
+interface StepResult extends OJson {
+  step: number;
+}
+
+function* Step1(props: OJson, ctx: Context): Generator<Promise<StepResult>, StepResult> {
   return yield Promise.resolve({step: 1});
 }
 
-function* Step2(props, ctx) {
+function* Step2(props: OJson, ctx: Context): Generator<Promise<StepResult>, StepResult> {
   return yield Promise.resolve({step: 2});
 }
 
-function* PipelineModel(props, ctx) {
+interface PipelineResult extends OJson {
+  step1: StepResult;
+  step2: StepResult;
+}
+
+function* PipelineModel(props: OJson, ctx: Context): Generator<Promise<StepResult> | StepResult, PipelineResult> {
   const step1 = yield Step1(props, ctx);
   const step2 = yield Step2(props, ctx);
   return {step1, step2};
@@ -308,7 +442,17 @@ PipelineModel.displayName = 'PipelineModel';
 Models can throw errors, which propagate normally:
 
 ```typescript
-async function FailingModel(props, ctx) {
+import type {OJson, Context} from '@ojson/models';
+
+interface FailingModelProps extends OJson {
+  id?: string;
+}
+
+interface FailingModelResult extends OJson {
+  id: string;
+}
+
+async function FailingModel(props: FailingModelProps, ctx: Context): Promise<FailingModelResult> {
   if (!props.id) {
     throw new Error('ID is required');
   }
@@ -319,7 +463,7 @@ FailingModel.displayName = 'FailingModel';
 try {
   await ctx.request(FailingModel, {}); // Throws error
 } catch (error) {
-  console.error(error.message); // "ID is required"
+  console.error((error as Error).message); // "ID is required"
 }
 ```
 
