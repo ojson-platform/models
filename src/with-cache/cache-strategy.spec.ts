@@ -4,7 +4,7 @@ import type {Key} from '../types';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {Dead, withModels} from '../with-models';
+import {Dead, InterruptedError, withModels} from '../with-models';
 import {withCache} from './with-cache';
 import {compose} from '../utils';
 
@@ -310,10 +310,10 @@ describe('Cache strategies behavior', () => {
             // Kill context before request
             ctx.kill();
 
-            const result = await ctx.request(model, {test: 1});
+            const result = ctx.request(model, {test: 1});
 
-            // Should return Dead
-            expect(result).toEqual(Dead);
+            // Should throw InterruptedError
+            await expect(result).rejects.toThrow(InterruptedError);
 
             // Dead should not be cached
             expect(cache.set).toHaveBeenCalledTimes(0);
@@ -338,10 +338,10 @@ describe('Cache strategies behavior', () => {
             model.displayName = 'model';
             model.cacheStrategy = CacheFirst;
 
-            const result = await ctx.request(model, {test: 1});
+            const result = ctx.request(model, {test: 1});
 
-            // Should return Dead
-            expect(result).toEqual(Dead);
+            // Should throw InterruptedError
+            await expect(result).rejects.toThrow(InterruptedError);
 
             // Dead should not be cached
             expect(cache.set).toHaveBeenCalledTimes(0);
@@ -767,10 +767,10 @@ describe('Cache strategies behavior', () => {
             // Kill context before request
             ctx.kill();
 
-            const result = await ctx.request(model, {test: 1});
+            const result = ctx.request(model, {test: 1});
 
-            // Should return Dead
-            expect(result).toEqual(Dead);
+            // Should throw InterruptedError
+            await expect(result).rejects.toThrow(InterruptedError);
 
             // Dead should not be cached
             expect(cache.set).toHaveBeenCalledTimes(0);

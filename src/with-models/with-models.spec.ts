@@ -3,7 +3,7 @@ import type { Model } from '../types';
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {withModels, Dead} from './with-models';
+import {withModels, Dead, InterruptedError} from './with-models';
 
 describe('withModels', () => {
     it('should work', async () => {
@@ -123,10 +123,8 @@ describe('withModels', () => {
 
         context.kill();
 
-        const result = await context.request(model, {test: 1});
-
+        await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
         expect(model).not.toBeCalled();
-        expect(result).toEqual(Dead);
     });
 
     it('should prevent processing steps if dead', async () => {
@@ -143,10 +141,8 @@ describe('withModels', () => {
 
         model.displayName = 'model';
 
-        const result = await context.request(model, {test: 1});
-
+        await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
         expect(model).toBeCalledWith({test: 1}, expect.anything());
-        expect(result).toEqual(Dead);
     });
 
     it('should work with model as object with action method', async () => {

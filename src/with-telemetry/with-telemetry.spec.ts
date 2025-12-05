@@ -4,7 +4,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {SpanStatusCode, trace} from '@opentelemetry/api';
 
 import {Context} from '../context';
-import {withModels, Dead} from '../with-models';
+import {withModels, Dead, InterruptedError} from '../with-models';
 import {compose} from '../utils';
 
 import {withTelemetry, type ModelWithTelemetry, __TelSpan__} from './with-telemetry';
@@ -231,9 +231,9 @@ describe('withTelemetry', () => {
         model.displayProps = {test: true};
         model.displayResult = {result: true};
 
-        const result = await ctx.request(model, {test: 1});
+        const result = ctx.request(model, {test: 1});
 
-        expect(result).toBe(Dead);
+        await expect(result).rejects.toThrow(InterruptedError);
         // Props are recorded BEFORE request execution, so they will be set even if request returns Dead
         expect(setAttributesSpy).toHaveBeenCalled();
         // Result is recorded AFTER request execution, so it won't be set if request returns Dead

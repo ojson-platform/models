@@ -1,4 +1,4 @@
-import type { Key, Model, OJson, Json } from '../types';
+import type { Key, Model, OJson, Json, Actor, ModelProps, ModelResult, ModelCtx } from '../types';
 import type { Context } from '../context';
 
 import {isGenerator, isPromise, isPlainObject, sign} from '../utils';
@@ -6,19 +6,31 @@ import {isGenerator, isPromise, isPlainObject, sign} from '../utils';
 const __Registry__ = Symbol('RequestRegistry');
 
 /**
- * Symbol returned by `request()` when the context has been killed or execution was interrupted.
- * This indicates that the model execution was cancelled before completion.
- *
+ * Symbol used internally to indicate that execution was interrupted.
+ * This should not be returned to users - instead, an InterruptedError is thrown.
+ */
+export const Dead = Symbol('Dead');
+
+/**
+ * Error thrown when a model execution is interrupted (context was killed).
+ * 
  * @example
  * ```typescript
- * ctx.kill();
- * const result = await ctx.request(SomeModel);
- * if (result === Dead) {
- *   console.log('Execution was cancelled');
+ * try {
+ *   const result = await ctx.request(SomeModel);
+ * } catch (error) {
+ *   if (error instanceof InterruptedError) {
+ *     console.log('Execution was cancelled');
+ *   }
  * }
  * ```
  */
-export const Dead = Symbol('Dead');
+export class InterruptedError extends Error {
+  constructor(message = 'Model execution was interrupted') {
+    super(message);
+    this.name = 'InterruptedError';
+  }
+}
 
 /**
  * Registry storing memoized model results.
@@ -35,15 +47,22 @@ type Registry = Map<Key, Promise<unknown>>;
  * 
  * @param model - The model to execute. Must have a static `displayName` property.
  * @param props - Optional input parameters for the model. Defaults to empty object.
- * @returns Promise resolving to the model result, or `Dead` if execution was interrupted.
+ * @returns Promise resolving to the model result
+ * @throws {InterruptedError} If execution was interrupted (context was killed)
  * 
  * @example
  * ```typescript
- * const result = await ctx.request(MyModel, {id: 123});
+ * try {
+ *   const result = await ctx.request(MyModel, {id: 123});
+ * } catch (error) {
+ *   if (error instanceof InterruptedError) {
+ *     // Handle interruption
+ *   }
+ * }
  * ```
  */
 export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
-    (model: Model<Props, Result>, props?: Props): Promise<Result | typeof Dead>;
+    (model: Model<Props, Result>, props?: Props): Promise<Result>;
 };
 
 /**
@@ -56,7 +75,7 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
  * @property {function(): boolean} isAlive - Checks if context is still alive (not killed)
  * @property {function(): typeof Dead} kill - Kills the context, interrupting all future requests
  * @property {Request} request - Method to request model execution with memoization
- * @property {function(Promise<Result>): Promise<Result | typeof Dead>} resolve - Resolves promises with interrupt checking
+ * @property {function(Promise<Result>): Promise<Result>} resolve - Resolves promises with interrupt checking
  * @property {function(string): WithModels<T>} create - Creates a child context with shared registry
  * 
  * @example
@@ -72,8 +91,11 @@ export type WithModels<T extends Context> = T & {
     [__Registry__]: Registry;
     isAlive(): boolean;
     kill(): typeof Dead;
-    request: Request;
-    resolve<Result extends Json>(value: Promise<Result>): Promise<Result | typeof Dead>;
+    request<M extends Model<any, any, T>>(
+        model: M,
+        props?: ModelProps<M>
+    ): Promise<ModelResult<M>>;
+    resolve<Result extends Json>(value: Promise<Result>): Promise<Result>;
     create(...args: Parameters<Context['create']>): WithModels<T>;
 };
 
@@ -94,19 +116,24 @@ export type WithModels<T extends Context> = T & {
  * @this {WithModels<Context>} - The context with model capabilities
  * @param model - The model to execute (function or object with action method)
  * @param props - Optional input parameters for the model. Defaults to empty object if not provided.
- * @returns Promise resolving to model result or Dead if interrupted
+ * @returns Promise resolving to model result
  * 
  * @throws {TypeError} If model lacks displayName property
  * @throws {TypeError} If model is not a function or object with action method
  * @throws {TypeError} If model returns unexpected result type
+ * @throws {InterruptedError} If execution was interrupted (context was killed)
  * 
  * @internal
  */
-async function request<Props extends OJson, Result extends Json>(
+async function request<M extends Model<any, any, any>>(
     this: WithModels<Context>,
-    model: Model<Props, Result>,
-    props?: Props
-) {
+    model: M,
+    props?: ModelProps<M>
+): Promise<ModelResult<M>> {
+    type Props = ModelProps<M>;
+    type Result = ModelResult<M>;
+    type Ctx = ModelCtx<M>;
+    
     if (!model.displayName) {
         throw new TypeError('Model should define static `displayName` property');
     }
@@ -115,16 +142,20 @@ async function request<Props extends OJson, Result extends Json>(
 
     props = props ?? ({} as Props);
 
-    const key = `${displayName};${sign(props)}` as Key;
+    const key = `${displayName};${sign(props as OJson)}` as Key;
 
     if (this[__Registry__].has(key)) {
-        return this[__Registry__].get(key)! as Promise<Result | typeof Dead>;
+        const cached = await this[__Registry__].get(key)!;
+        if (cached === Dead) {
+            throw new InterruptedError(`Model ${displayName} execution was interrupted`);
+        }
+        return cached as Result;
     }
 
     const action = typeof model === 'function'
-        ? model
+        ? model as Actor<Props, Result, Ctx>
         : typeof model.action === 'function'
-            ? model.action
+            ? model.action as Actor<Props, Result, Ctx>
             : null;
 
     if (typeof action !== 'function') {
@@ -136,7 +167,7 @@ async function request<Props extends OJson, Result extends Json>(
             return Dead;
         }
 
-        let call = action(props, ctx);
+        let call = action(props as Props, ctx as Ctx);
         let value = undefined, error = undefined, done = false;
 
         if (isPromise<Result>(call)) {
@@ -175,6 +206,11 @@ async function request<Props extends OJson, Result extends Json>(
         }
 
         return value;
+    }).then((result) => {
+        if (result === Dead) {
+            throw new InterruptedError(`Model ${displayName} execution was interrupted`);
+        }
+        return result as Result;
     });
 
     this[__Registry__].set(key, promise);
@@ -225,7 +261,9 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
         isAlive: () => state !== Dead,
         kill: () => state = Dead,
         request: request,
-        resolve: (value) => Promise.resolve(value),
+        resolve: async <Result extends Json>(value: Promise<Result>) => {
+            return await value;
+        },
     }) as WithModels<CTX>;
 
     Object.assign(ctx, {

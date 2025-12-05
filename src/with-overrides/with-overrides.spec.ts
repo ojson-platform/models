@@ -119,7 +119,7 @@ describe('withOverrides', () => {
         ]);
 
         const parent = wrap(new Context('parent'));
-        const child = parent.create('child');
+        const child = parent.create('child') as typeof parent;
 
         expect(await parent.request(model1, {from: 'parent'})).toEqual({result: 2});
         expect(await child.request(model1, {from: 'child'})).toEqual({result: 2});

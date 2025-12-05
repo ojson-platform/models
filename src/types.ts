@@ -20,13 +20,46 @@ export type OJson = {
  */
 export type Json = OJson | Json[] | Primitive;
 
-type Actor<Props extends OJson = OJson, Result extends Json = Json> =
-    (props: Props, context: Context) => Result | Promise<Result> | Generator<Result>;
+export type Actor<Props extends OJson = OJson, Result extends Json = Json, Ctx extends Context = Context> =
+    (props: Props, context: Ctx) => Result | Promise<Result> | Generator<Result>;
 
 export type Model<
     Props extends OJson = OJson,
-    Result extends Json = Json
-> = (Actor<Props, Result> | {action: Actor<Props, Result>}) & {
+    Result extends Json = Json,
+    Ctx extends Context = Context
+> = (Actor<Props, Result, Ctx> | {action: Actor<Props, Result, Ctx>}) & {
     displayName: string;
 };
+
+/**
+ * Helper type to extract Props from a Model.
+ * Works with both function models and object models with action property.
+ */
+export type ModelProps<M> = 
+    M extends (...args: any[]) => any
+        ? M extends (props: infer Props, ...args: any[]) => any ? Props : never
+        : M extends {action: (...args: any[]) => any}
+            ? M['action'] extends (props: infer Props, ...args: any[]) => any ? Props : never
+            : never;
+
+/**
+ * Helper type to extract Result from a Model.
+ * Works with both function models and object models with action property.
+ * Extracts the return type, handling Promise and Generator.
+ */
+export type ModelResult<M> = 
+    M extends (...args: any[]) => infer R
+        ? R extends Promise<infer T> ? T : R extends Generator<infer T, any, any> ? T : R
+        : M extends {action: (...args: any[]) => infer R}
+            ? R extends Promise<infer T> ? T : R extends Generator<infer T, any, any> ? T : R
+            : never;
+
+/**
+ * Helper type to extract Ctx from a Model.
+ * Works with both function models and object models with action property.
+ */
+export type ModelCtx<M> = 
+    M extends (props: any, ctx: infer Ctx, ...args: any[]) => any ? Ctx :
+    M extends {action: (props: any, ctx: infer Ctx, ...args: any[]) => any} ? Ctx :
+    never;
 

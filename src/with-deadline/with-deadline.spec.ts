@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {withModels, Dead} from '../with-models';
+import {withModels, Dead, InterruptedError} from '../with-models';
 import {withDeadline} from './with-deadline';
 
 describe('withDeadline', () => {
@@ -40,10 +40,10 @@ describe('withDeadline', () => {
         });
         (model as any).displayName = 'slow-model';
 
-        const result = await ctx.request(model as any, {});
+        const result = ctx.request(model as any, {});
 
-        // After deadline, context should be killed and request returns Dead
-        expect(result).toBe(Dead);
+        // After deadline, context should be killed and request throws InterruptedError
+        await expect(result).rejects.toThrow(InterruptedError);
         expect(ctx.isAlive()).toBe(false);
     }, 200);
 
@@ -56,12 +56,19 @@ describe('withDeadline', () => {
         });
         (model as any).displayName = 'model';
 
-        const result = await ctx.request(model as any, {});
+        const result = ctx.request(model as any, {});
 
-        // When kill is called manually, withModels semantics decide what is returned.
+        // When kill is called manually, withModels semantics throw InterruptedError.
         // We only assert that context is dead afterwards.
         expect(ctx.isAlive()).toBe(false);
-        expect(result === Dead || result?.result === 1).toBe(true);
+        try {
+            const value = await result;
+            if (value && typeof value === 'object' && 'result' in value) {
+                expect((value as {result: number}).result).toBe(1);
+            }
+        } catch (error) {
+            expect(error).toBeInstanceOf(InterruptedError);
+        }
     });
 
     it('should not change ctx.kill semantics when timeout is zero', async () => {

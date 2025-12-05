@@ -1,6 +1,6 @@
 import type {Key, Model, OJson, Json} from '../types';
 
-import {Dead, withModels} from '../with-models';
+import {InterruptedError, withModels} from '../with-models';
 import {Context} from '../context';
 import {sign} from '../utils';
 
@@ -200,14 +200,16 @@ export class Cache implements CacheProvider {
             try {
                 const ctx = withModels(new Map())(new Context('cache'));
 
-                const value: Json | typeof Dead = await ctx.request(model, props);
-
-                if (value === Dead) {
-                    return;
+                try {
+                    const value: Json = await ctx.request(model, props);
+                    await this.set(key, value, ttl);
+                } catch (error) {
+                    // If execution was interrupted, don't cache
+                    if (error instanceof InterruptedError) {
+                        return;
+                    }
+                    throw error;
                 }
-
-                // After Dead check, value is guaranteed to be Json
-                await this.set(key, value, ttl);
             } finally {
                 // Remove from updates map when done (success or failure)
                 this._updates.delete(key);

@@ -172,16 +172,21 @@ await ctx.request(UserModel, {id: 1}); // Returns cached
 
 ### Shared Registry Across Contexts
 
+Within a single request lifecycle, multiple contexts can share the same registry to enable memoization across nested contexts:
+
 ```typescript
+// Within a single request
 const registry = new Map();
 
 const ctx1 = withModels(registry)(new Context('request1'));
 const ctx2 = withModels(registry)(new Context('request2'));
 
-// Both contexts share the same registry
+// Both contexts share the same registry (same request lifecycle)
 await ctx1.request(UserModel, {id: 123}); // Computes
 await ctx2.request(UserModel, {id: 123}); // Returns cached from ctx1
 ```
+
+**Important**: Registry should be created **once per request lifecycle**, not shared across different HTTP requests. Each HTTP request should have its own registry.
 
 ## Models Calling Other Models
 
@@ -233,7 +238,6 @@ import {Context} from './context';
 import {withModels} from './with-models';
 
 const app = express();
-const registry = new Map(); // Create once, reuse per request
 
 function RequestParams(props, ctx) {
   return {
@@ -252,6 +256,9 @@ async function AuthModel(props, ctx) {
 AuthModel.displayName = 'AuthModel';
 
 app.get('/api/user', async (req, res) => {
+  // Create a new registry for each request (memoization works only within a single request)
+  const registry = new Map();
+  
   const baseCtx = new Context('http-get');
   baseCtx.req = req;
   baseCtx.res = res;
@@ -349,7 +356,7 @@ const user = await ctx.request(UserModel, {id: 123});
 
 ## Best Practices
 
-1. **One registry per request**: Create a new registry for each request lifecycle
+1. **One registry per request**: Create a new registry for each request lifecycle. **Never reuse a registry across different HTTP requests** - this would cause data leakage between requests and incorrect memoization behavior. Each request must have its own isolated registry.
 
 2. **Meaningful displayNames**: Use descriptive, unique names:
    ```typescript
@@ -383,19 +390,43 @@ const wrap = withModels(new Map());
 const ctx = wrap(new Context('request'));
 ```
 
-### `ctx.request<Props, Result>(model: Model<Props, Result>, props?: Props)`
+### `ctx.request(model, props?)`
 
-Executes a model with automatic memoization.
+Executes a model with automatic memoization. TypeScript automatically infers the return type from the model's signature.
 
 **Parameters:**
-- `model: Model<Props, Result>` - The model to execute (must have `displayName`)
-- `props?: Props` - Optional input parameters (defaults to empty object)
+- `model: Model` - The model to execute (must have `displayName`)
+- `props?: Props` - Optional input parameters (defaults to empty object). Type is inferred from the model's first parameter.
 
-**Returns:** `Promise<Result | typeof Dead>`
+**Returns:** `Promise<Result>` where `Result` is inferred from the model's return type (Promise and Generator are automatically unwrapped).
+
+**Type inference:**
+- Props are inferred from the model's first parameter
+- Result is inferred from the model's return type (Promise and Generator are automatically unwrapped)
+- Context type is inferred from the model's second parameter
 
 **Example:**
 ```typescript
-const result = await ctx.request(MyModel, {id: 123});
+function GetUser(props: {id: string}): Promise<User> {
+  return fetchUser(props.id);
+}
+GetUser.displayName = 'GetUser';
+
+// TypeScript infers: user is Promise<User>
+const user = await ctx.request(GetUser, {id: '123'});
+```
+
+**Note**: TypeScript can infer return types from function bodies, but explicit return type annotations are recommended for better code documentation and early error detection:
+```typescript
+// Recommended - explicit return type
+function GetUser(props: {id: string}): Promise<User> {
+  return fetchUser(props.id);
+}
+
+// Also works - TypeScript infers Promise<User> from the return statement
+function GetUser(props: {id: string}) {
+  return fetchUser(props.id);
+}
 ```
 
 ### `ctx.kill()`

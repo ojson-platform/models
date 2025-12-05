@@ -5,7 +5,6 @@ import type {Attributes, Span} from '@opentelemetry/api';
 
 import {SpanKind, SpanStatusCode, trace} from '@opentelemetry/api';
 import {api, core} from '@opentelemetry/sdk-node';
-import {Dead} from '../with-models';
 import {isPlainObject} from '../utils';
 
 /**
@@ -110,11 +109,9 @@ const wrapRequest = (request: WithModels<Context>['request']) =>
         }
 
         const value = await request.call(this, model, props);
-
-        if (displayResult && value !== Dead) {
+        if (displayResult) {
             this[__ModelResult__](extractResultFields(value, displayResult));
         }
-
         return value;
     };
 

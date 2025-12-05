@@ -6,8 +6,6 @@ import type {Cache, CacheConfig, CacheProvider} from './cache';
 import type {WithCache} from './with-cache';
 
 import {get} from 'lodash-es';
-import {Dead} from '../with-models';
-
 /**
  * Helper function to check if a value is empty (undefined).
  * Used to determine cache misses.
@@ -15,14 +13,6 @@ import {Dead} from '../with-models';
  * @internal
  */
 const isEmptyValue = (target: any): target is undefined => target === undefined;
-
-/**
- * Helper function to check if a value is Dead (execution was interrupted).
- * Dead values should not be cached.
- * 
- * @internal
- */
-const isDead = (target: any): target is typeof Dead => target === Dead;
 
 /**
  * Gets the name of a cache provider for logging purposes.
@@ -178,7 +168,7 @@ export const CacheOnly = Strategy('cache-only', (_config, cache) => {
  * ```
  */
 export const NetworkOnly = Strategy('network-only', (_config, _cache, request) => {
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
+    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
         return request.call(this, model, props);
     };
 });
@@ -218,7 +208,7 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
     const fromNetwork = NetworkOnly(config, cache, request);
     const providerName = getProviderName(cache.provider);
 
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
+    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {
@@ -228,10 +218,10 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
             });
 
             const key = cache.key(model, props);
-            const value: Json | typeof Dead = await fromNetwork.call(this, model, props);
+            const value: Json = await fromNetwork.call(this, model, props);
         
-            // Don't cache Dead values (execution was interrupted)
-            if (this.shouldCache() && !isDead(value)) {
+            // Cache the value if caching is enabled
+            if (this.shouldCache()) {
                 cache.set(key, value, ttl).catch(() => {});
         
                 this.event('cache.update', {
@@ -247,7 +237,7 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
             strategy: 'cache-first',
             provider: providerName,
         });
-        return cachedResult as Json | typeof Dead;
+        return cachedResult as Json;
     };
 });
 
@@ -294,7 +284,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
     const fromNetwork = NetworkOnly(config, cache, request);
     const providerName = getProviderName(cache.provider);
 
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | typeof Dead> {
+    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {
@@ -304,10 +294,10 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
             });
             
             const key = cache.key(model, props);
-            const value: Json | typeof Dead = await fromNetwork.call(this, model, props);
+            const value: Json = await fromNetwork.call(this, model, props);
         
-            // Don't cache Dead values (execution was interrupted)
-            if (this.shouldCache() && !isDead(value)) {
+            // Cache the value if caching is enabled
+            if (this.shouldCache()) {
                 cache.set(key, value, ttl).catch(() => {});
         
                 this.event('cache.update', {
@@ -335,6 +325,6 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
             });
         }
 
-        return cachedResult as Json | typeof Dead;
+        return cachedResult as Json;
     };
 });

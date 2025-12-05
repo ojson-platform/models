@@ -85,6 +85,7 @@ The primary helper that adds the `request` method to context for calling models 
 
 **Basic usage:**
 ```typescript
+// Create registry once per request lifecycle (NOT shared across different HTTP requests)
 const registry = new Map();
 const ctx = withModels(registry)(new Context('request'));
 const result = await ctx.request(ModelName, {prop: 'value'});
@@ -274,8 +275,50 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - **Memoization key**: Based on `displayName` and serialized props (via `sign()`)
 - **Context lifecycle**: Tied to request lifecycle (create → use → end/fail)
 - **Helper composition**: Helpers wrap and enhance context, maintaining type safety
-- **Registry scope**: Shared per-request registry enables cross-context memoization
+- **Registry scope**: Registry must be created **once per request lifecycle** (e.g., per HTTP request). Never reuse a registry across different requests - this would cause data leakage and incorrect memoization. Shared registry within a single request enables cross-context memoization.
 - **Props handling**: Props parameter is optional and defaults to empty object using nullish coalescing (`??`)
+
+## Type Inference
+
+### Model Type Helpers
+
+The library provides helper types for extracting type information from models:
+
+- **`ModelProps<M>`**: Extracts the Props type from a model
+- **`ModelResult<M>`**: Extracts the Result type from a model (handles Promise and Generator unwrapping)
+- **`ModelCtx<M>`**: Extracts the Context type from a model
+
+These helpers work with both function models and object models with `action` property. They are used internally by `ctx.request()` to provide proper type inference.
+
+**Example:**
+```typescript
+function GetUser(props: {id: string}): Promise<User> {
+  // ...
+}
+GetUser.displayName = 'GetUser';
+
+// TypeScript will infer:
+// - Props: {id: string}
+// - Result: User (Promise is unwrapped)
+const user = await ctx.request(GetUser, {id: '123'}); // user: User
+```
+
+**Note**: TypeScript can infer return types from function bodies, but explicit return type annotations are recommended for:
+- Better code documentation
+- Early error detection
+- Ensuring the function signature matches the intended return type
+
+```typescript
+// Good - explicit return type (recommended)
+function GetUser(props: {id: string}): Promise<User> {
+  return fetchUser(props.id);
+}
+
+// Also works - TypeScript infers Promise<User> from the return statement
+function GetUser(props: {id: string}) {
+  return fetchUser(props.id);
+}
+```
 
 ## Documentation
 
