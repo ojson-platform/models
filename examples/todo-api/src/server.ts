@@ -1,0 +1,150 @@
+import express, {type Request, type Response} from 'express';
+import {InterruptedError} from '@ojson/models';
+import {
+  GetAllTodos,
+  GetTodo,
+  CreateTodo,
+  UpdateTodo,
+  DeleteTodo,
+  RequestParams,
+  type ExpressRequestParams,
+} from './models';
+import {deadlineMiddleware, contextMiddleware, finishMiddleware, type RequestContext} from './middleware';
+import {NotFoundError, BadRequestError} from './errors';
+import {initTelemetry} from './telemetry';
+
+// Расширяем глобальный тип Express Request через declaration merging
+declare global {
+  namespace Express {
+    interface Request {
+      ctx: RequestContext;
+      deadline: number; // Deadline в миллисекундах (всегда установлен, по умолчанию 30 секунд)
+    }
+  }
+}
+
+// Initialize OpenTelemetry SDK before creating Express app
+initTelemetry();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware для парсинга JSON
+app.use(express.json());
+
+// Middleware для вычисления deadline из HTTP заголовков
+app.use(deadlineMiddleware);
+
+// Middleware для создания контекста с models
+app.use(contextMiddleware);
+
+// Middleware для автоматического завершения контекста после обработки запроса
+app.use(finishMiddleware);
+
+// GET /api/todos - получить все todo
+app.get('/api/todos', async (req: Request, res: Response) => {
+  // Используем модель для получения всех todo
+  // Модель автоматически мемоизируется, если вызывается несколько раз
+  const todos = await req.ctx.request(GetAllTodos);
+  res.json(todos);
+});
+
+// GET /api/todos/:id - получить один todo
+app.get('/api/todos/:id', async (req: Request, res: Response) => {
+  // Получаем параметры запроса через модель
+  const params = await req.ctx.request(RequestParams);
+  const todo = await req.ctx.request(GetTodo, {id: params.params.id});
+  
+  if (!todo) {
+    throw new NotFoundError('Todo not found');
+  }
+  
+  res.json(todo);
+});
+
+// POST /api/todos - создать новый todo
+app.post('/api/todos', async (req: Request, res: Response) => {
+  const params = await req.ctx.request(RequestParams);
+  const body = params.body as {title: string; description?: string};
+  
+  if (!body.title) {
+    throw new BadRequestError('Title is required');
+  }
+  
+  const createProps: {title: string; description?: string} = {
+    title: body.title,
+  };
+  if (body.description !== undefined) {
+    createProps.description = body.description;
+  }
+  
+  const todo = await req.ctx.request(CreateTodo, createProps);
+  
+  res.status(201).json(todo);
+});
+
+// PUT /api/todos/:id - обновить todo
+app.put('/api/todos/:id', async (req: Request, res: Response) => {
+  const params = await req.ctx.request(RequestParams);
+  const body = params.body as {title?: string; description?: string; completed?: boolean};
+  const id = params.params.id;
+  
+  const todo = await req.ctx.request(UpdateTodo, {
+    id,
+    updates: body,
+  });
+  
+  if (!todo) {
+    throw new NotFoundError('Todo not found');
+  }
+  
+  res.json(todo);
+});
+
+// DELETE /api/todos/:id - удалить todo
+app.delete('/api/todos/:id', async (req: Request, res: Response) => {
+  const params = await req.ctx.request(RequestParams);
+  const deleted = await req.ctx.request(DeleteTodo, {id: params.params.id});
+  
+  if (!deleted) {
+    throw new NotFoundError('Todo not found');
+  }
+  
+  res.status(204).send();
+});
+
+// Обработка ошибок
+app.use((err: Error, req: Request, res: Response, next: any) => {
+  // Отмечаем контекст как неудачный
+  req.ctx.fail(err);
+  
+  console.error('Unhandled error:', err);
+  
+  // Обработка специфичных ошибок
+  if (err instanceof InterruptedError) {
+    return res.status(503).json({error: 'Service unavailable'});
+  }
+  
+  if (err instanceof NotFoundError) {
+    return res.status(404).json({error: err.message});
+  }
+  
+  if (err instanceof BadRequestError) {
+    return res.status(400).json({error: err.message});
+  }
+  
+  // Общая обработка для остальных ошибок
+  res.status(500).json({error: 'Internal server error'});
+});
+
+// Запуск сервера
+app.listen(PORT, () => {
+  console.log(`🚀 Todo API server running on http://localhost:${PORT}`);
+  console.log(`📝 Endpoints:`);
+  console.log(`   GET    /api/todos      - получить все todo`);
+  console.log(`   GET    /api/todos/:id  - получить todo по ID`);
+  console.log(`   POST   /api/todos      - создать новый todo`);
+  console.log(`   PUT    /api/todos/:id  - обновить todo`);
+  console.log(`   DELETE /api/todos/:id - удалить todo`);
+});
+
