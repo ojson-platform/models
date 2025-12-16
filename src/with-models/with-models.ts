@@ -96,6 +96,11 @@ export type WithModels<T extends Context> = T & {
         props?: ModelProps<M>
     ): Promise<ModelResult<M>>;
     resolve<Result extends Json>(value: Promise<Result>): Promise<Result>;
+    set<M extends Model<any, any, T>>(
+        model: M,
+        value: ModelResult<M>,
+        props?: ModelProps<M>
+    ): void;
     create(...args: Parameters<Context['create']>): WithModels<T>;
 };
 
@@ -172,7 +177,10 @@ async function request<M extends Model<any, any, any>>(
 
         if (isPromise<Result>(call)) {
             value = await ctx.resolve(call);
-        } else if (isPlainObject(call)) {
+        } else if (isPlainObject(call) || Array.isArray(call) || call === null || (typeof call !== 'object' && call !== undefined)) {
+            // Handle objects, arrays, primitives (null, number, string, boolean)
+            // Note: undefined is not a valid JSON value, so it's excluded
+            // All of these are valid Json values
             value = call;
         } else if (isGenerator<Result>(call)) {
             const states = [];
@@ -229,8 +237,10 @@ async function request<M extends Model<any, any, any>>(
  * @internal
  */
 const wrapCreate = <CTX extends Context>(create: CTX['create']) =>
-    function (name: string) {
-        return wrapContext(create.call(this, name));
+    function (this: WithModels<CTX>, name: string) {
+        const child = create.call(this, name);
+        // Share registry with child
+        return wrapContext(child, this[__Registry__]);
     };
 
 /**
@@ -253,6 +263,47 @@ const wrapCreate = <CTX extends Context>(create: CTX['create']) =>
  * 
  * @internal
  */
+/**
+ * Sets a pre-computed value for a model.
+ * 
+ * Uses the same registry as `request()` for consistency. Builds cache keys
+ * using displayName and serialized props (same as `request()`). Throws an error
+ * if a value already exists in the registry for the given model+props.
+ * 
+ * @this {WithModels<Context>} - The context with model capabilities
+ * @param model - The model to set a value for
+ * @param value - The pre-computed value for the model
+ * @param props - Optional props for the model (defaults to empty object)
+ * @throws {TypeError} If model lacks displayName property
+ * @throws {Error} If value already exists in registry for the given model+props
+ * 
+ * @internal
+ */
+function set<M extends Model<any, any, any>>(
+    this: WithModels<Context>,
+    model: M,
+    value: ModelResult<M>,
+    props?: ModelProps<M>
+): void {
+    if (!model.displayName) {
+        throw new TypeError('Model should define static `displayName` property');
+    }
+
+    const {displayName} = model;
+    const modelProps = (props ?? {}) as OJson;
+    const key = `${displayName};${sign(modelProps)}` as Key;
+
+    if (this[__Registry__].has(key)) {
+        throw new Error(
+            `Cannot set value for model "${displayName}" with props "${sign(modelProps)}": ` +
+            `value already exists in registry. Use ctx.request() to retrieve it.`
+        );
+    }
+
+    // Store in registry as resolved promise (same format as request())
+    this[__Registry__].set(key, Promise.resolve(value));
+}
+
 const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
     let state = null;
 
@@ -264,6 +315,7 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
         resolve: async <Result extends Json>(value: Promise<Result>) => {
             return await value;
         },
+        set: set,
     }) as WithModels<CTX>;
 
     Object.assign(ctx, {
@@ -272,6 +324,7 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
         kill: parent.kill,
         request: parent.request,
         resolve: parent.resolve,
+        set: parent.set,
         create: wrapCreate(ctx.create),
     });
 

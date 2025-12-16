@@ -60,13 +60,17 @@ Models can be:
 Models **must** have a static `displayName` property for identification and caching.
 
 ```typescript
-function RequestParams(props, ctx): OJson {
-  return {
-    isTesting: ctx.req.query.isTesting,
-    isDev: ctx.req.query.isDev
-  };
+// Request-dependent model - should be set via ctx.set() in middleware
+function RequestParams(): OJson {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
 RequestParams.displayName = 'RequestParams';
+
+// In middleware
+req.ctx.set(RequestParams, {
+  isTesting: req.query.isTesting === 'true',
+  isDev: req.query.isDev === 'true'
+});
 ```
 
 ### withModels
@@ -260,6 +264,33 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - Helpers should typically be composed in this order:
   - `withModels` → other helpers (`withCache`, `withOverrides`, `withTelemetry`) → `withDeadline`.
 - `withDeadline` does not change memoization or cache behavior, it only controls how long we wait for async model resolutions.
+
+### ctx.set() pattern: agent-facing notes
+
+- `ctx.set(model, value)` allows setting pre-computed values for request-dependent models.
+- This pattern is used for models that depend on request data (e.g., Express `Request` parameters) to avoid mutability issues and ensure deterministic memoization.
+- Models using this pattern should throw an error if called directly, indicating they should be set via `ctx.set()`.
+- Values set via `ctx.set()` are stored in a shared map and returned when the model is requested via `ctx.request()`.
+- This pattern ensures immutable snapshots of only the data actually needed, avoiding god objects and unnecessary copying.
+- See [ADR 0002](../docs/adr/0002-ctx-set-pattern.md) for detailed rationale and implementation.
+
+**Example:**
+```typescript
+// Model definition
+function RequestParams(): RequestParamsResult {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
+}
+RequestParams.displayName = 'RequestParams';
+
+// In middleware - create immutable snapshot of only needed fields
+req.ctx.set(RequestParams, {
+  isTesting: req.query.isTesting === 'true',
+  isDev: req.query.isDev === 'true'
+});
+
+// Usage
+const params = await req.ctx.request(RequestParams);
+```
 
 ## Development Workflow
 

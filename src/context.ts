@@ -1,3 +1,5 @@
+import type {Model, ModelResult} from './types';
+
 export class Context {
     private _name: string;
 
@@ -84,5 +86,39 @@ export class Context {
      */
     event(name: string, attributes?: Record<string, unknown>): void {
         // No-op by default
+    }
+
+    /**
+     * Sets a pre-computed value for a model.
+     * 
+     * This is used for request-dependent models that should not be computed directly
+     * but instead have their values set explicitly (e.g., from Express request data).
+     * 
+     * Uses the same registry as `request()` for consistency. Builds cache keys
+     * using displayName and serialized props (same as `request()`). Throws an error
+     * if a value already exists in the registry for the given model+props.
+     * 
+     * Models that use this pattern should throw an error if called directly:
+     * ```typescript
+     * function RequestParams() {
+     *   throw new Error('This model should be set via ctx.set()');
+     * }
+     * ```
+     * 
+     * @param model - The model to set a value for
+     * @param value - The pre-computed value for the model
+     * @param props - Optional props for the model (defaults to empty object)
+     * 
+     * @example
+     * ```typescript
+     * ctx.set(RequestParams, {
+     *   params: {...req.params},
+     *   query: {...req.query},
+     *   body: req.body,
+     * });
+     * ```
+     */
+    set(_model: Model<any, any, any>, _value: any, _props?: any): void {
+        // No-op by default, implemented by withModels
     }
 }

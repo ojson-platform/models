@@ -14,9 +14,14 @@ A **Model** is a deterministic function that transforms input parameters (`OJson
 
 - **Deterministic**: Same parameters → same result
 - **Serializable**: Parameters can be serialized to create cache keys
-- **JSON-compatible**: Input is OJson (object at top level), output is any JSON-serializable value (does not need to be an object)
+- **JSON-compatible**: Input is OJson (object at top level), output is any JSON-serializable value
 
-**Note**: Input parameters must be OJson (object at top level), but the result can be any valid JSON (object, array, primitive, etc.).
+**Note**: Input parameters must be OJson (object at top level), but the result can be any valid JSON value:
+- Objects (`{key: value}`)
+- Arrays (`[1, 2, 3]`)
+- Primitives: `null`, `string`, `number`, `boolean`
+
+All result types are fully supported and properly memoized.
 
 ### OJson Type
 
@@ -80,17 +85,25 @@ import type {OJson, Context} from '@ojson/models';
 
 interface RequestParamsResult extends OJson {
   userId: string;
-  isTesting: boolean;
+  isAdmin: boolean;
+  timestamp: number;
 }
 
-function RequestParams(props: OJson, ctx: Context & {req: {query: {userId?: string; isTesting?: string}}}): RequestParamsResult {
-  return {
-    userId: ctx.req.query.userId || '',
-    isTesting: ctx.req.query.isTesting === 'true'
-  };
+// Request-dependent model - should be set via ctx.set() in middleware
+function RequestParams(): RequestParamsResult {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
-
 RequestParams.displayName = 'RequestParams';
+```
+
+**Note**: In middleware, set the value explicitly:
+```typescript
+// In middleware
+ctx.set(RequestParams, {
+  userId: req.params.userId as string,
+  isAdmin: req.query.isAdmin === 'true',
+  timestamp: Date.now(),
+});
 ```
 
 ### 4. Call Models
@@ -325,7 +338,7 @@ import type {OJson} from '@ojson/models';
 declare global {
   namespace Express {
     interface Request {
-      ctx: WithModels<Context & {req: Request; res: Response}>;
+      ctx: WithModels<Context>;
       deadline: number;
     }
   }
@@ -343,14 +356,17 @@ app.use((req: Request, res: Response, next) => {
 // Middleware для создания контекста
 app.use((req: Request, res: Response, next) => {
   const registry = new Map<Key, Promise<unknown>>();
-  const baseCtx = new Context(`http-${req.method.toLowerCase()}-${req.path}`) as Context & {req: Request; res: Response};
-  baseCtx.req = req;
-  baseCtx.res = res;
   
   req.ctx = compose([
     withModels(registry),
     withDeadline(req.deadline),
-  ])(baseCtx);
+  ])(new Context(`http-${req.method.toLowerCase()}-${req.path}`));
+  
+  // Set request-dependent model values
+  req.ctx.set(RequestParams, {
+    userId: (req.query.userId as string) || '',
+    token: req.headers.authorization
+  });
   
   next();
 });
@@ -360,11 +376,9 @@ interface RequestParamsResult extends OJson {
   token: string | undefined;
 }
 
-function RequestParams(props: OJson, ctx: Context & {req: Request}): RequestParamsResult {
-  return {
-    userId: (ctx.req.query.userId as string) || '',
-    token: ctx.req.headers.authorization
-  };
+// Request-dependent model - should be set via ctx.set() in middleware
+function RequestParams(): RequestParamsResult {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
 RequestParams.displayName = 'RequestParams';
 
@@ -387,7 +401,7 @@ AuthModel.displayName = 'AuthModel';
 
 app.get('/api/user', async (req: Request, res: Response) => {
   try {
-    const params = await req.ctx.request(RequestParams) as RequestParamsResult;
+    const params = await req.ctx.request(RequestParams);
     const auth = await req.ctx.request(AuthModel, {token: params.token});
     
     if (!auth.valid) {
@@ -598,10 +612,39 @@ if (ctx.isAlive()) {
 }
 ```
 
+## Best Practices
+
+- **Registry scope**: Create registry once per request lifecycle (e.g., per HTTP request). Never reuse a registry across different requests - this would cause data leakage and incorrect memoization.
+- **Model naming**: Use descriptive `displayName` values for easier debugging and cache key identification.
+- **Determinism**: Ensure models are deterministic - same inputs should always produce same outputs.
+- **Error handling**: Models should handle errors gracefully. Use `ctx.fail()` to mark context as failed.
+- **Type safety**: Use explicit type annotations for model props and return types for better type inference.
+- **Request-dependent models**: Models that depend on request data (e.g., Express `Request` parameters) should use the `ctx.set()` pattern. The model should throw an error if called directly, and its value should be set explicitly via `ctx.set()` in middleware. See [ADR 0002](../../docs/adr/0002-ctx-set-pattern.md) for details.
+
+**Example:**
+```typescript
+// Model definition
+function RequestParams(): RequestParamsResult {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
+}
+RequestParams.displayName = 'RequestParams';
+
+// In middleware - create immutable snapshot of only needed fields
+req.ctx.set(RequestParams, {
+  userId: req.params.userId as string,
+  isAdmin: req.query.isAdmin === 'true',
+  timestamp: Date.now(),
+});
+
+// Usage
+const params = await req.ctx.request(RequestParams);
+```
+
 ## See Also
 
 - [withCache](../with-cache/readme.md) - Caching layer for models
 - [withDeadline](../with-deadline/readme.md) - Timeout/deadline support
 - [withOverrides](../with-overrides/readme.md) - Model substitution for testing
 - [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration
+- [ADR 0002](../../docs/adr/0002-ctx-set-pattern.md) - ctx.set() pattern for request-dependent models
 

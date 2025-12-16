@@ -103,10 +103,10 @@ describe('withModels', () => {
             .toThrow('Model should define static `displayName` property');
     });
 
-    it('should fail with wrong result', async () => {
+    it('should fail with undefined result (not valid JSON)', async () => {
         const registry = new Map();
         const context = withModels(registry)(new Context('request'));
-        const model = vi.fn() as unknown as Model;
+        const model = vi.fn(() => undefined) as unknown as Model;
 
         model.displayName = 'model';
 
@@ -329,5 +329,208 @@ describe('withModels', () => {
 
         await expect(() => context.request(model, {test: 1})).rejects
             .toThrow('Unexpected model type for model');
+    });
+
+    it('should handle models returning arrays', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => [1, 2, 3]) as unknown as Model;
+
+        model.displayName = 'arrayModel';
+
+        const result = await context.request(model, {test: 1});
+
+        expect(model).toBeCalledWith({test: 1}, expect.anything());
+        expect(result).toEqual([1, 2, 3]);
+        expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should handle models returning null', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => null) as unknown as Model;
+
+        model.displayName = 'nullModel';
+
+        const result = await context.request(model, {test: 1});
+
+        expect(model).toBeCalledWith({test: 1}, expect.anything());
+        expect(result).toBe(null);
+    });
+
+    it('should handle models returning strings', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => 'hello world') as unknown as Model;
+
+        model.displayName = 'stringModel';
+
+        const result = await context.request(model, {test: 1});
+
+        expect(model).toBeCalledWith({test: 1}, expect.anything());
+        expect(result).toBe('hello world');
+        expect(typeof result).toBe('string');
+    });
+
+    it('should handle models returning numbers', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => 42) as unknown as Model;
+
+        model.displayName = 'numberModel';
+
+        const result = await context.request(model, {test: 1});
+
+        expect(model).toBeCalledWith({test: 1}, expect.anything());
+        expect(result).toBe(42);
+        expect(typeof result).toBe('number');
+    });
+
+    it('should handle models returning booleans', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => true) as unknown as Model;
+
+        model.displayName = 'booleanModel';
+
+        const result = await context.request(model, {test: 1});
+
+        expect(model).toBeCalledWith({test: 1}, expect.anything());
+        expect(result).toBe(true);
+        expect(typeof result).toBe('boolean');
+    });
+
+    it('should memoize models returning arrays', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const model = vi.fn(() => [1, 2, 3]) as unknown as Model;
+
+        model.displayName = 'arrayModel';
+
+        const result1 = await context.request(model, {test: 1});
+        const result2 = await context.request(model, {test: 1});
+
+        expect(model).toHaveBeenCalledTimes(1);
+        expect(result1 === result2).toBe(true);
+        expect(result1).toEqual([1, 2, 3]);
+    });
+
+    it('should memoize models returning primitives', async () => {
+        const registry = new Map();
+        const context = withModels(registry)(new Context('request'));
+        const stringModel = vi.fn(() => 'test') as unknown as Model;
+        const numberModel = vi.fn(() => 123) as unknown as Model;
+        const booleanModel = vi.fn(() => false) as unknown as Model;
+        const nullModel = vi.fn(() => null) as unknown as Model;
+
+        stringModel.displayName = 'stringModel';
+        numberModel.displayName = 'numberModel';
+        booleanModel.displayName = 'booleanModel';
+        nullModel.displayName = 'nullModel';
+
+        const str1 = await context.request(stringModel, {test: 1});
+        const str2 = await context.request(stringModel, {test: 1});
+        const num1 = await context.request(numberModel, {test: 1});
+        const num2 = await context.request(numberModel, {test: 1});
+        const bool1 = await context.request(booleanModel, {test: 1});
+        const bool2 = await context.request(booleanModel, {test: 1});
+        const null1 = await context.request(nullModel, {test: 1});
+        const null2 = await context.request(nullModel, {test: 1});
+
+        expect(stringModel).toHaveBeenCalledTimes(1);
+        expect(numberModel).toHaveBeenCalledTimes(1);
+        expect(booleanModel).toHaveBeenCalledTimes(1);
+        expect(nullModel).toHaveBeenCalledTimes(1);
+
+        expect(str1 === str2).toBe(true);
+        expect(num1 === num2).toBe(true);
+        expect(bool1 === bool2).toBe(true);
+        expect(null1 === null2).toBe(true);
+    });
+
+    describe('ctx.set()', () => {
+        it('should return pre-set value via ctx.set()', async () => {
+            const registry = new Map();
+            const context = withModels(registry)(new Context('request'));
+            const model = vi.fn(() => {
+                throw new Error('Model should not be called');
+            }) as unknown as Model;
+            model.displayName = 'preSetModel';
+
+            // Set value via ctx.set()
+            context.set(model, {result: 'pre-set value'});
+
+            // Request should return pre-set value
+            const result = await context.request(model);
+            expect(result).toEqual({result: 'pre-set value'});
+            expect(model).not.toHaveBeenCalled();
+        });
+
+        it('should memoize pre-set values', async () => {
+            const registry = new Map();
+            const context = withModels(registry)(new Context('request'));
+            const model = vi.fn(() => {
+                throw new Error('Model should not be called');
+            }) as unknown as Model;
+            model.displayName = 'preSetModel';
+
+            context.set(model, {result: 'pre-set value'});
+
+            // Multiple requests should return same value
+            const result1 = await context.request(model);
+            const result2 = await context.request(model);
+            expect(result1).toEqual({result: 'pre-set value'});
+            expect(result2).toEqual({result: 'pre-set value'});
+            expect(model).not.toHaveBeenCalled();
+        });
+
+        it('should share pre-set values across child contexts', async () => {
+            const registry = new Map();
+            const context = withModels(registry)(new Context('parent'));
+            const model = vi.fn(() => {
+                throw new Error('Model should not be called');
+            }) as unknown as Model;
+            model.displayName = 'preSetModel';
+
+            context.set(model, {result: 'pre-set value'});
+
+            const child = context.create('child');
+            const result = await child.request(model);
+            expect(result).toEqual({result: 'pre-set value'});
+            expect(model).not.toHaveBeenCalled();
+        });
+
+        it('should support props in ctx.set()', async () => {
+            const registry = new Map();
+            const context = withModels(registry)(new Context('request'));
+            const model = vi.fn(() => {
+                throw new Error('Model should not be called');
+            }) as unknown as Model;
+            model.displayName = 'preSetModel';
+
+            context.set(model, {result: 'value1'}, {id: '1'});
+            context.set(model, {result: 'value2'}, {id: '2'});
+
+            const result1 = await context.request(model, {id: '1'});
+            const result2 = await context.request(model, {id: '2'});
+            expect(result1).toEqual({result: 'value1'});
+            expect(result2).toEqual({result: 'value2'});
+            expect(model).not.toHaveBeenCalled();
+        });
+
+        it('should throw error if value already exists in registry', async () => {
+            const registry = new Map();
+            const context = withModels(registry)(new Context('request'));
+            const model = vi.fn(() => ({result: 'computed'})) as unknown as Model;
+            model.displayName = 'testModel';
+
+            // First compute via request
+            await context.request(model, {id: '1'});
+
+            // Try to set - should throw
+            expect(() => {
+                context.set(model, {result: 'pre-set'}, {id: '1'});
+            }).toThrow('value already exists in registry');
+        });
     });
 });

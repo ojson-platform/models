@@ -13,7 +13,7 @@ import {wait} from '../utils';
  * Semantics:
  * - `timeout` is applied to all async operations resolved through `ctx.resolve`.
  * - On timeout, `ctx.kill()` is called, and any in-flight `ctx.request` calls
- *   will observe `Dead` according to `withModels` semantics.
+ *   will fail with `InterruptedError` according to `withModels` semantics.
  * - `ctx.kill()` is wrapped to clear the internal timer before delegating to
  *   the original `kill`, so manual kills do not leak timers.
  *
