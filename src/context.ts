@@ -59,10 +59,10 @@ export class Context {
 
         try {
             const result = await action(ctx);
-            this.end();
+            ctx.end();
             return result;
         } catch (error) {
-            this.fail(error);
+            ctx.fail(error);
             throw error;
         }
     }
