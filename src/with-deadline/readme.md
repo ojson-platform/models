@@ -109,7 +109,11 @@ behavior is controlled solely by `withModels`.
 ```ts
 const wrap = compose([
   withModels(registry),
-  withCache(cacheConfig, cacheProvider),
+  withCache(
+    cacheConfig,
+    cacheProvider,
+    (name: string) => withModels(new Map())(new Context(name)),
+  ),
   withDeadline(2000),
 ]);
 

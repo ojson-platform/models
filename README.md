@@ -152,7 +152,7 @@ Adds configurable caching strategies for cross-request caching.
 
 - Multiple strategies: `CacheFirst`, `NetworkOnly`, `CacheOnly`, `StaleWhileRevalidate`
 - Configurable TTL per strategy
-- Dead-aware caching (never caches interrupted execution)
+- Interruption-aware caching (never caches interrupted executions: `InterruptedError`)
 - Works alongside `withModels` memoization
 
 ### [withDeadline](./src/with-deadline/readme.md)
@@ -202,7 +202,11 @@ const cacheProvider = new MemoryCache();
 // Using compose utility
 const wrap = compose([
   withModels(registry),
-  withCache({default: {ttl: 3600}}, cacheProvider),
+  withCache(
+    {default: {ttl: 3600}},
+    cacheProvider,
+    (name: string) => withModels(new Map())(new Context(name)),
+  ),
   withTelemetry({serviceName: 'my-api'}),
   withDeadline(5000), // 5 second timeout
 ]);

@@ -48,10 +48,24 @@ Rules:
   };
   ```
 
+  Example implementation:
+
+  ```ts
+  class RedisCache implements CacheProvider {
+    async get(key: Key): Promise<Json | undefined> {
+      // Retrieve from Redis
+    }
+    
+    async set(key: Key, value: Json, ttl: number): Promise<void> {
+      // Store in Redis with TTL
+    }
+  }
+  ```
+
 - **Cache** — wrapper around `CacheProvider` that:
-  - builds keys from model and props;
+  - builds keys from model and props (format: `${model.displayName};${sign(props)}`);
   - exposes `get`, `set`, `update`;
-  - encapsulates Dead-aware behavior.
+  - encapsulates interruption-aware behavior (never caches interrupted executions).
 
 `withCache` always takes a **CacheProvider** and creates a `Cache`
 internally. When using it directly, you create a `Cache` from a provider.
@@ -89,19 +103,22 @@ MyModel.cacheStrategy = CacheFirst;
 OtherModel.cacheStrategy = StaleWhileRevalidate.with({ttl: 1800});
 ```
 
-### Dead-aware caching
+### Interruption-aware caching
 
-`withModels` may return the special `Dead` symbol when a context has
-been killed (`ctx.kill()`) or execution was interrupted.
+`withModels` treats killed contexts (`ctx.kill()`) and deadline timeouts as
+interruptions and signals them via `InterruptedError`.
 
 `withCache` guarantees:
 
-- **Dead is never cached**:
-  - `CacheFirst` and `StaleWhileRevalidate` check the result before writing;
-  - `Cache.update` also checks for `Dead` and skips writing in that case.
+- **Interrupted executions are never cached**:
+  - `CacheFirst` and `StaleWhileRevalidate` rely on `withModels` semantics:
+    when execution is interrupted and `ctx.request` throws `InterruptedError`,
+    cache writes are skipped.
+  - `Cache.update` also checks for `InterruptedError` and skips cache writes
+    for interrupted executions.
 - Strategies always either:
   - return a JSON value;
-  - or propagate `Dead` to the caller.
+  - or propagate `InterruptedError` to the caller.
 
 ### disableCache and withModels memoization
 
@@ -136,7 +153,10 @@ import {MemoryCache} from './with-cache/cache-provider';
 const provider = new MemoryCache();
 const cache = new Cache(
   {default: {ttl: 3600}}, // 1 hour
-  provider
+  provider,
+  // Background context factory used by Cache.update.
+  // If the factory applies withCache, disableCache() will be called automatically.
+  (name) => withModels(new Map())(new Context(name)),
 );
 ```
 
@@ -149,8 +169,11 @@ import {Context} from './context';
 
 const registry = new Map();
 
+const backgroundCtx = (name: string) =>
+  withModels(new Map())(new Context(name));
+
 const wrap = (ctx: Context) =>
-  withCache(cache.config, cache.provider)(
+  withCache(cache.config, cache.provider, backgroundCtx)(
     withModels(registry)(ctx)
   );
 
@@ -208,8 +231,8 @@ Details:
 
 - creates a new `Context('cache')` and wraps it with `withModels`;
 - calls `ctx.request(model, props)`;
-- if the result is **not** `Dead`, writes it into the `CacheProvider`
-  with the provided `ttl`;
+- if execution is **not** interrupted (no `InterruptedError`), writes the result
+  into the `CacheProvider` with the provided `ttl`;
 - memoizes parallel updates by key:
   - multiple concurrent `update` calls for the same `(model, props)`
     share a single Promise;
@@ -217,11 +240,15 @@ Details:
 
 ## API Overview
 
-### withCache(config, provider)
+### withCache(config, provider, createContext)
 
 ```ts
-function withCache(config: CacheConfig, provider: CacheProvider) {
-  return function <T extends Context>(ctx: T): WithCache<WithModels<T>> { ... }
+function withCache(
+  config: CacheConfig,
+  provider: CacheProvider,
+  createContext: (name: string) => WithModels<Context>,
+) {
+  return function (ctx: WithModels<Context>): WithCache<WithModels<Context>> { ... }
 }
 ```
 
@@ -229,16 +256,25 @@ function withCache(config: CacheConfig, provider: CacheProvider) {
 
 - `disableCache()`
 - `shouldCache(): boolean`
-- `request()` (overridden, Dead-aware, taking strategies into account)
+- `request()` (overridden, interruption-aware, taking strategies into account)
 
 ### Cache
 
 Main methods:
 
-- `key(model, props): Key` — builds a cache key.
+- `key(model, props): Key` — builds a deterministic cache key.
+  
+  Format: `${model.displayName};${sign(props)}`
+  
+  Example:
+  ```ts
+  cache.key(MyModel, { id: 123, type: 'user' });
+  // Returns: "MyModel;id=123&type=user"
+  ```
+
 - `get(key): Promise<Json | undefined>` — reads a value from the provider.
 - `set(key, value, ttl): Promise<void>` — writes JSON into the provider.
-- `update(model, props, ttl): Promise<void>` — background update, Dead-aware,
+- `update(model, props, ttl): Promise<void>` — background update, interruption-aware,
   with deduplication by key.
 
 ## Testing Notes
@@ -254,7 +290,7 @@ Key testing scenarios:
 
 - correct behavior of strategies (`CacheOnly`, `NetworkOnly`, `CacheFirst`,
   `StaleWhileRevalidate`);
-- ensuring Dead is never cached;
+- ensuring interrupted executions (via `InterruptedError`) are never cached;
 - behavior when `disableCache()` is used;
 - correct TTL handling (including invalid config cases);
 - deduplication of background updates in `Cache.update`.

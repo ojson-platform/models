@@ -31,55 +31,16 @@ export type WithCacheModel = Model & {
     cacheStrategy?: CacheStrategy;
 };
 
-/**
- * Extended context type that includes cache capabilities.
- * Adds cache control methods and integrates cache strategies with model execution.
- * 
- * @template T - The base context type (must already have WithModels capabilities)
- * 
- * @property {boolean} [__CacheDisabled__] - Internal flag indicating if cache is globally disabled
- * @property {function(): void} disableCache - Disables caching globally for this context and all children
- * @property {function(): boolean} shouldCache - Checks if caching is currently enabled
- */
+/** Context extended with cache controls and strategy support. */
 export type WithCache<T extends WithModels<Context>> = T & {
     [__CacheDisabled__]: boolean;
-    /**
-     * Disables caching globally for this context and all child contexts.
-     * Once disabled, no models will be cached until the context is recreated.
-     * 
-     * @example
-     * ```typescript
-     * ctx.disableCache();
-     * // All subsequent requests will bypass cache
-     * ```
-     */
+    /** Globally disables caching for this context and all descendants. */
     disableCache(): void;
-    /**
-     * Checks if caching is currently enabled.
-     * Returns `false` if cache is globally disabled.
-     * 
-     * @returns `true` if caching should be used, `false` otherwise
-     * 
-     * @example
-     * ```typescript
-     * if (ctx.shouldCache()) {
-     *   // Store in cache
-     * }
-     * ```
-     */
+    /** Returns `false` if cache is disabled via `disableCache()`. */
     shouldCache(): boolean;
 };
 
-/**
- * Wraps the context's request method to integrate cache strategies.
- * Checks if the model has a cache strategy and applies it if caching is enabled.
- * 
- * @param request - The original request method from WithModels
- * @param cache - The cache instance to use for storage operations
- * @returns Wrapped request function that handles caching
- * 
- * @internal
- */
+/** @internal Wraps `ctx.request` with cache strategy logic. */
 const wrapRequest = (request: WithModels<Context>['request'], cache: Cache) =>
     async function (this: WithCache<WithModels<Context>>, model: WithCacheModel, props, ...args) {
         const strategy = model.cacheStrategy;
@@ -93,38 +54,13 @@ const wrapRequest = (request: WithModels<Context>['request'], cache: Cache) =>
         return resolver.call(this, model, props);
     };
 
-/**
- * Wraps the context's create method to ensure child contexts also have cache capabilities.
- * 
- * @param create - The original create method from WithModels
- * @param cache - The cache instance to share with child contexts
- * @returns Wrapped create function that returns enhanced context
- * 
- * @internal
- */
+/** @internal Wraps `ctx.create` so children inherit cache behavior. */
 const wrapCreate = (create: WithModels<Context>['create'], cache: Cache) =>
     function (this: WithCache<WithModels<Context>>, name: string) {
         return wrapContext(create.call(this, name), cache);
     };
 
-/**
- * Wraps a context with cache capabilities.
- * 
- * Adds:
- * - Cache strategy integration with model execution
- * - Cache control methods (disableCache, shouldCache)
- * - Shared cache state across context hierarchy
- * - Automatic cache disable propagation to parent contexts
- * 
- * The cache state (disabled/skipped) propagates through the context hierarchy,
- * allowing parent contexts to control caching for all nested operations.
- * 
- * @param ctx - The base context with model capabilities
- * @param cache - The cache instance to use for storage operations
- * @returns Enhanced context with cache capabilities
- * 
- * @internal
- */
+/** @internal Attaches cache state and methods to a `WithModels<Context>`. */
 const wrapContext = (ctx: WithModels<Context>, cache: Cache) => {
     let disabled = false;
 
@@ -157,54 +93,26 @@ const wrapContext = (ctx: WithModels<Context>, cache: Cache) => {
 };
 
 /**
- * Factory function that enhances a context with cache capabilities.
+ * Enhances `WithModels<Context>` with cache strategies and runtime cache controls.
+ *
+ * The `createContext` factory is used only by `Cache.update` to build a background
+ * context. If the created context has `disableCache()`, it will be called automatically
+ * to prevent recursive caching.
  * 
- * Returns a wrapper function that adds:
- * - Cache strategy support for models
- * - Cache control methods (disableCache, shouldCache)
- * - Automatic cache integration with model execution
- * - Shared cache state across context hierarchy
- * 
- * Models can specify a cache strategy via the `cacheStrategy` property.
- * If no strategy is specified, the model executes without caching.
- * 
- * @param config - Cache configuration object mapping strategy names to TTL settings
- * @param provider - Cache provider implementation (e.g., MemoryCache, RedisCache)
- * @returns Function that wraps a context with cache capabilities
- * 
- * @example
- * ```typescript
- * const provider = new MemoryCache();
- * const config = {
- *   default: { ttl: 3600 },
- *   'cache-first': { ttl: 1800 }
- * };
- * 
- * const wrap = compose([
- *   withModels(registry),
- *   withCache(config, provider)
- * ]);
- * 
- * const ctx = wrap(new Context('request'));
- * 
- * // Model with cache strategy
- * function MyModel(props, ctx) {
- *   return { data: 'value' };
- * }
- * MyModel.displayName = 'MyModel';
- * MyModel.cacheStrategy = CacheFirst.with({ ttl: 3600 });
- * 
- * const result = await ctx.request(MyModel, { id: 123 });
- * ```
- * 
- * @example
- * ```typescript
- * // Control caching at runtime
- * ctx.disableCache(); // Disable for all models
- * ```
+ * @param config - TTL configuration per cache strategy name
+ * @param provider - Low-level cache storage implementation
+ * @param createContext - Factory for creating background contexts used by `cache.update`.
+ *   Should create a `WithModels<Context>` instance (typically via `withModels`
+ *   and optional helpers like `withTelemetry`/`withDeadline`). If the factory
+ *   applies `withCache`, `disableCache()` will be called automatically on the
+ *   created context to prevent recursive caching.
  */
-export function withCache(config: CacheConfig, provider: CacheProvider) {
-    const cache = new Cache(config, provider);
+export function withCache(
+    config: CacheConfig,
+    provider: CacheProvider,
+    createContext: (name: string) => WithModels<Context>,
+) {
+    const cache = new Cache(config, provider, createContext);
 
     return function(ctx: WithModels<Context>) {
         return wrapContext(ctx, cache);

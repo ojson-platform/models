@@ -299,7 +299,7 @@ When testing code that uses `withTelemetry`:
 - Use `vi.spyOn(span, 'setAttributes')` and `vi.spyOn(span, 'addEvent')` to verify telemetry calls
 - Test that props, results, and errors are recorded correctly
 - Verify that child contexts create child spans
-- Test Dead-aware behavior (props recorded, results not)
+- Test interruption-aware behavior (props recorded, results not when `InterruptedError` is thrown)
 
 See `src/with-telemetry/with-telemetry.spec.ts` for examples.
 

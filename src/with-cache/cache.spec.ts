@@ -3,13 +3,19 @@ import type {WithCacheModel} from './with-cache';
 import {describe, expect, it, vi} from 'vitest';
 
 import {Cache} from './cache';
+import {withModels} from '../with-models';
+import {Context} from '../context';
 import {TrackingCacheProvider} from './__tests__/cache-provider';
 
 describe('Cache', () => {
     describe('update()', () => {
         it('should deduplicate parallel updates for the same model and props', async () => {
             const cacheProvider = new TrackingCacheProvider();
-            const cache = new Cache({default: {ttl: 3600}}, cacheProvider);
+            const cache = new Cache(
+                {default: {ttl: 3600}},
+                cacheProvider,
+                (name: string) => withModels(new Map())(new Context(name)),
+            );
 
             let callCount = 0;
             const model = vi.fn(() => {
@@ -37,7 +43,11 @@ describe('Cache', () => {
 
         it('should allow parallel updates for different models or props', async () => {
             const cacheProvider = new TrackingCacheProvider();
-            const cache = new Cache({default: {ttl: 3600}}, cacheProvider);
+            const cache = new Cache(
+                {default: {ttl: 3600}},
+                cacheProvider,
+                (name: string) => withModels(new Map())(new Context(name)),
+            );
 
             let callCount1 = 0;
             const model1 = vi.fn(() => {
@@ -73,7 +83,11 @@ describe('Cache', () => {
 
         it('should remove key from updates map even if update fails with error', async () => {
             const cacheProvider = new TrackingCacheProvider();
-            const cache = new Cache({default: {ttl: 3600}}, cacheProvider);
+            const cache = new Cache(
+                {default: {ttl: 3600}},
+                cacheProvider,
+                (name: string) => withModels(new Map())(new Context(name)),
+            );
 
             const error = new Error('Model error');
             const model = vi.fn(() => {

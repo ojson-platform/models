@@ -30,12 +30,14 @@ export function getSpan(ctx: Context | undefined): Span | undefined {
 /**
  * @internal
  * Ensures AsyncLocalStorage for model info exists on the context and returns it.
- * This helper centralizes the invariant that withTelemetry must have initialized storage.
+ * This helper centralizes the invariant that withTelemetry has been applied to
+ * the context. If storage is missing, it's a programming error (helper was not
+ * applied correctly) and we throw to surface it early.
  */
 function requireModelStorage<CTX extends WithModels<Context>>(ctx: WithTelemetry<CTX>): AsyncLocalStorage<ModelInfo> {
     const storage = ctx[__ModelStorage__];
     if (!storage) {
-        throw new Error('withTelemetry: modelStorage is not initialized. This should not happen.');
+        throw new Error('withTelemetry: modelStorage is not initialized on this context. Ensure `withTelemetry` wraps all created contexts.');
     }
     return storage;
 }

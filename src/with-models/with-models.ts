@@ -367,7 +367,11 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
  * 
  * const wrap = compose([
  *   withModels(registry),
- *   withCache(config, cache),
+ *   withCache(
+ *     config,
+ *     cache,
+ *     (name: string) => withModels(new Map())(new Context(name)),
+ *   ),
  *   withDeadline(5000)
  * ]);
  * 

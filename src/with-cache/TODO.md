@@ -20,4 +20,11 @@ This can cause loss of other wrappers (e.g., `withTelemetry`, `withDeadline`) th
 
 **Impact**: This would ensure that background cache updates (e.g., in `StaleWhileRevalidate` strategy) maintain the same context capabilities as the main request context, including telemetry tracing, deadlines, etc.
 
+## Helper module structure alignment
+
+- Align `with-cache` (and, later, other helpers like `with-overrides` and `with-deadline`) with the common helper module structure:
+  - introduce `types.ts` for all public types (`WithCache`, `CacheConfig`, `CacheProvider`, `CacheStrategy`, etc.);
+  - optionally introduce `utils.ts` for pure helper functions;
+  - update `index.ts` to use `export type * from './types';` and re-export implementations explicitly.
+
 

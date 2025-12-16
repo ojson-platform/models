@@ -66,7 +66,7 @@ type ComposeResult<
  * ```typescript
  * const wrap = compose([
  *   withModels(registry),           // Context -> WithModels<Context>
- *   withCache(config, cache),       // WithModels<Context> -> WithCache<WithModels<Context>>
+ *   withCache(config, cache, createBackgroundCtx), // WithModels<Context> -> WithCache<WithModels<Context>>
  *   withDeadline(5000)              // WithModels<Context> -> WithModels<Context>
  * ]);
  * 

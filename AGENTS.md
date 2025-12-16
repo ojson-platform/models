@@ -133,10 +133,10 @@ All helpers follow the same composition pattern and can be chained using the `co
   - `CacheConfig` has the shape `{default: {ttl: number}, 'cache-first': {ttl: number}, ...}`.
   - `Strategy.with()` (e.g. `CacheFirst.with({ttl: 1800})`) accepts **only** the short form `{ttl: number}` and internally wraps it into a per-strategy `CacheConfig`.
 
-- **CacheProvider vs Cache**:
+-- **CacheProvider vs Cache**:
   - `CacheProvider` is the low-level storage (`get(key)`, `set(key, value, ttl)`).
   - `Cache` wraps a `CacheProvider` and adds `key()`, `get()`, `set()`, `update()` helpers.
-  - When composing helpers (e.g. in `Cache.update`), always pass the underlying provider into `withCache`, not the `Cache` itself (`withCache(config, this._provider)`), otherwise you risk recursive wrapping.
+  - The `createContext` factory passed to `Cache` (or `withCache`) is used by `Cache.update` to create background contexts. If the created context has `disableCache()`, it will be called automatically to prevent recursive caching.
 
 - **CacheFirst strategy behavior**:
   - Uses `CacheOnly` + `NetworkOnly`:
@@ -159,9 +159,12 @@ Use the `compose` utility to combine multiple helpers:
 ```typescript
 import {compose} from './utils';
 
+const backgroundCtx = (name: string) =>
+  withModels(new Map())(new Context(name));
+
 const wrap = compose([
   withModels(registry),
-  withCache(config, cache),
+  withCache(config, cache, backgroundCtx),
   withDeadline(5000),
   withTelemetry({serviceName: 'api'})
 ]);
@@ -382,6 +385,10 @@ function GetUser(props: {id: string}) {
 - **JSDoc style**:
   - For complex context extension types (e.g. `WithModels`, `WithCache`), use a single JSDoc block with `@property` entries that describe the whole shape.
   - For interfaces and classes like `CacheProvider`, `CacheConfig`, `Cache`, prefer a brief type-level JSDoc and short per-property/method comments, without duplicating the same information in `@property` lists.
+  - **Documentation depth**: Be more concise for internal APIs (`@internal` functions, private methods) and more detailed for public APIs:
+    - **Public APIs**: Include parameter descriptions (`@param`), return value descriptions (`@returns`), and brief usage examples when helpful. Keep general descriptions concise but ensure all parameters are documented.
+    - **Internal APIs**: Use brief one-line descriptions. Avoid redundant parameter documentation if types are self-explanatory.
+    - **Balance**: Remove verbose examples and lengthy explanations, but always document public method parameters for clarity.
 - **Code documentation**: All public APIs are documented with JSDoc comments
 - **Type definitions**: Full TypeScript support with strict typing for models, props, and results
 
