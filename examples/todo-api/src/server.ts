@@ -1,4 +1,4 @@
-import express, {type Request, type Response} from 'express';
+import express, {type Request, type Response, type NextFunction} from 'express';
 import {InterruptedError} from '@ojson/models';
 import {
   GetAllTodos,
@@ -9,7 +9,13 @@ import {
   RequestParams,
   type ExpressRequestParams,
 } from './models';
-import {deadlineMiddleware, contextMiddleware, finishMiddleware, type RequestContext} from './middleware';
+import {
+  deadlineMiddleware,
+  contextMiddleware,
+  finishMiddleware,
+  telemetryHeadersMiddleware,
+  type RequestContext,
+} from './middleware';
 import {NotFoundError, BadRequestError} from './errors';
 import {initTelemetry} from './telemetry';
 
@@ -29,8 +35,23 @@ initTelemetry();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/**
+ * Wrapper для async handlers в Express
+ * Автоматически ловит ошибки и передает их в error middleware через next()
+ */
+function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 // Middleware для парсинга JSON
 app.use(express.json());
+
+// Middleware для обработки заголовков телеметрии и извлечения родительского span контекста
+app.use(telemetryHeadersMiddleware);
 
 // Middleware для вычисления deadline из HTTP заголовков
 app.use(deadlineMiddleware);
@@ -42,15 +63,15 @@ app.use(contextMiddleware);
 app.use(finishMiddleware);
 
 // GET /api/todos - получить все todo
-app.get('/api/todos', async (req: Request, res: Response) => {
+app.get('/api/todos', asyncHandler(async (req: Request, res: Response) => {
   // Используем модель для получения всех todo
   // Модель автоматически мемоизируется, если вызывается несколько раз
   const todos = await req.ctx.request(GetAllTodos);
   res.json(todos);
-});
+}));
 
 // GET /api/todos/:id - получить один todo
-app.get('/api/todos/:id', async (req: Request, res: Response) => {
+app.get('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
   // Получаем параметры запроса через модель
   const params = await req.ctx.request(RequestParams);
   const todo = await req.ctx.request(GetTodo, {id: params.params.id});
@@ -60,10 +81,10 @@ app.get('/api/todos/:id', async (req: Request, res: Response) => {
   }
   
   res.json(todo);
-});
+}));
 
 // POST /api/todos - создать новый todo
-app.post('/api/todos', async (req: Request, res: Response) => {
+app.post('/api/todos', asyncHandler(async (req: Request, res: Response) => {
   const params = await req.ctx.request(RequestParams);
   const body = params.body as {title: string; description?: string};
   
@@ -81,10 +102,10 @@ app.post('/api/todos', async (req: Request, res: Response) => {
   const todo = await req.ctx.request(CreateTodo, createProps);
   
   res.status(201).json(todo);
-});
+}));
 
 // PUT /api/todos/:id - обновить todo
-app.put('/api/todos/:id', async (req: Request, res: Response) => {
+app.put('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
   const params = await req.ctx.request(RequestParams);
   const body = params.body as {title?: string; description?: string; completed?: boolean};
   const id = params.params.id;
@@ -99,10 +120,10 @@ app.put('/api/todos/:id', async (req: Request, res: Response) => {
   }
   
   res.json(todo);
-});
+}));
 
 // DELETE /api/todos/:id - удалить todo
-app.delete('/api/todos/:id', async (req: Request, res: Response) => {
+app.delete('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
   const params = await req.ctx.request(RequestParams);
   const deleted = await req.ctx.request(DeleteTodo, {id: params.params.id});
   
@@ -111,40 +132,38 @@ app.delete('/api/todos/:id', async (req: Request, res: Response) => {
   }
   
   res.status(204).send();
-});
+}));
 
 // Обработка ошибок
 app.use((err: Error, req: Request, res: Response, next: any) => {
-  // Отмечаем контекст как неудачный
   req.ctx.fail(err);
-  
-  console.error('Unhandled error:', err);
-  
-  // Обработка специфичных ошибок
-  if (err instanceof InterruptedError) {
-    return res.status(503).json({error: 'Service unavailable'});
+
+  switch (true) {
+    case err instanceof InterruptedError:
+      return res.status(503).json({error: 'Service unavailable'});
+    case err instanceof NotFoundError:
+      return res.status(404).json({error: err.message});
+    case err instanceof BadRequestError:
+      return res.status(400).json({error: err.message});
+    default:
+      console.error('Unhandled error:', err);
+      res.status(500).json({error: 'Internal server error'});
   }
-  
-  if (err instanceof NotFoundError) {
-    return res.status(404).json({error: err.message});
-  }
-  
-  if (err instanceof BadRequestError) {
-    return res.status(400).json({error: err.message});
-  }
-  
-  // Общая обработка для остальных ошибок
-  res.status(500).json({error: 'Internal server error'});
 });
 
-// Запуск сервера
-app.listen(PORT, () => {
-  console.log(`🚀 Todo API server running on http://localhost:${PORT}`);
-  console.log(`📝 Endpoints:`);
-  console.log(`   GET    /api/todos      - получить все todo`);
-  console.log(`   GET    /api/todos/:id  - получить todo по ID`);
-  console.log(`   POST   /api/todos      - создать новый todo`);
-  console.log(`   PUT    /api/todos/:id  - обновить todo`);
-  console.log(`   DELETE /api/todos/:id - удалить todo`);
-});
+// Export app for testing
+export default app;
+
+// Запуск сервера (только если не в тестовом режиме)
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Todo API server running on http://localhost:${PORT}`);
+    console.log(`📝 Endpoints:`);
+    console.log(`   GET    /api/todos      - получить все todo`);
+    console.log(`   GET    /api/todos/:id  - получить todo по ID`);
+    console.log(`   POST   /api/todos      - создать новый todo`);
+    console.log(`   PUT    /api/todos/:id  - обновить todo`);
+    console.log(`   DELETE /api/todos/:id - удалить todo`);
+  });
+}
 

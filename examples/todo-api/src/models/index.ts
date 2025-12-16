@@ -1,34 +1,32 @@
-import type {OJson, Json, Context} from '@ojson/models';
-import type {Request, Response} from 'express';
+import type {OJson, Json} from '@ojson/models';
 import {todoStore} from './store';
 import type {Todo} from './types';
-
-// Тип контекста для Express моделей
-type ExpressContext = Context & {
-  req: Request;
-  res: Response;
-};
-
-interface ExpressResponse {
-  json: (data: unknown) => void;
-}
 
 // Модель для получения всех todo
 function GetAllTodos(): Todo[] {
   return todoStore.getAll();
 }
 GetAllTodos.displayName = 'GetAllTodos';
+GetAllTodos.displayResult = '*';
+GetAllTodos.displayTags = {
+  'provider': 'test'
+};
 
 // Модель для получения одного todo по ID
 interface GetTodoProps extends OJson {
   id: string;
 }
 
-function GetTodo(props: GetTodoProps) {
+function GetTodo(props: GetTodoProps): Todo | null {
   const todo = todoStore.getById(props.id);
   return todo || null;
 }
 GetTodo.displayName = 'GetTodo';
+GetTodo.displayProps = {id: true};
+GetTodo.displayResult = '*';
+GetTodo.displayTags = {
+  'provider': 'test'
+};
 
 // Модель для создания todo
 type CreateTodoProps = OJson & {
@@ -53,6 +51,9 @@ async function CreateTodo(props: CreateTodoProps): Promise<Todo> {
   return todoStore.create(createData);
 }
 CreateTodo.displayName = 'CreateTodo';
+CreateTodo.displayTags = {
+  'provider': 'test'
+};
 
 // Модель для обновления todo
 interface UpdateTodoProps extends OJson {
@@ -64,7 +65,7 @@ interface UpdateTodoProps extends OJson {
   };
 }
 
-async function UpdateTodo(props: UpdateTodoProps, ctx: ExpressContext): Promise<Todo | null> {
+async function UpdateTodo(props: UpdateTodoProps): Promise<Todo | null> {
   // Симуляция асинхронной операции
   await new Promise(resolve => setTimeout(resolve, 10));
   
@@ -78,7 +79,7 @@ interface DeleteTodoProps extends OJson {
   id: string;
 }
 
-async function DeleteTodo(props: DeleteTodoProps, ctx: ExpressContext): Promise<boolean> {
+async function DeleteTodo(props: DeleteTodoProps): Promise<boolean> {
   // Симуляция асинхронной операции
   await new Promise(resolve => setTimeout(resolve, 10));
   
@@ -94,12 +95,9 @@ export interface ExpressRequestParams extends OJson {
 }
 
 // Модель для получения параметров запроса из Express
-function RequestParams(props: OJson, ctx: ExpressContext): ExpressRequestParams {
-  return {
-    params: (ctx.req.params || {}) as Record<string, string>,
-    query: (ctx.req.query || {}) as Record<string, string>,
-    body: (ctx.req.body || {}) as Json,
-  };
+// Эта модель не должна вызываться напрямую - её значение устанавливается через ctx.set() в middleware
+function RequestParams(): ExpressRequestParams {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
 RequestParams.displayName = 'RequestParams';
 

@@ -5,9 +5,11 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "postinstall": "ts-patch install",
+    "build": "tspc",
     "start": "node dist/server.js",
-    "dev": "tsc --watch & node --watch dist/server.js"
+    "dev": "tspc --watch & node --watch dist/server.js",
+    "test": "vitest"
   },
   "dependencies": {
     "@ojson/models": "file:../..",
@@ -16,6 +18,8 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.0",
-    "typescript": "^5.7.2"
+    "ts-patch": "^3.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
   }
 }

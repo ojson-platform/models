@@ -149,7 +149,7 @@ npm run dev
 - **CreateTodo** - создание нового todo (асинхронная модель)
 - **UpdateTodo** - обновление todo (асинхронная модель)
 - **DeleteTodo** - удаление todo (асинхронная модель)
-- **RequestParams** - получение параметров Express запроса (синхронная модель)
+- **RequestParams** - получение параметров Express запроса (request-dependent модель, устанавливается через ctx.set())
 
 ### Мемоизация
 
@@ -218,7 +218,7 @@ curl -X DELETE http://localhost:3000/api/todos/1
 ### Context и Models
 
 Каждый HTTP запрос создаёт свой контекст через `contextMiddleware`, который:
-- Создаёт базовый `ExpressContext` с привязкой к Express Request/Response
+- Создаёт контекст с моделями и устанавливает значения для request-dependent моделей через `ctx.set()`
 - Использует `compose` для применения обёрток:
   - `withModels` для мемоизации и вызова моделей
   - `withDeadline` для ограничения времени выполнения (deadline из заголовков)

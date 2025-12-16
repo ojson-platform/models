@@ -27,8 +27,7 @@ export function contextMiddleware(req: Request, res: Response, next: () => void)
     withDeadline(req.deadline),
   ])(new Context(`http-${req.method.toLowerCase()}-${req.path}`) as RequestContext);
   
-  req.ctx.req = req;
-  req.ctx.res = res;
+  // Request-dependent models are set via ctx.set() (see section 8)
   
   next();
 }
@@ -181,11 +180,11 @@ const todo = await req.ctx.request(GetTodo, {id: '123'}); // todo: Todo | null
 - Нет необходимости в кастах
 - Лучшая поддержка IDE
 
-### 8. Строгая типизация RequestParams
+### 8. Request-dependent модели через ctx.set()
 
-**Проблема**: Постоянные касты при работе с параметрами запроса.
+**Проблема**: Изначально `RequestParams` обращался к мутабельным данным из контекста (`ctx.req`), что нарушало детерминизм мемоизации.
 
-**Решение**: Создать типизированный интерфейс `ExpressRequestParams`.
+**Решение**: Использовать паттерн `ctx.set()` для request-dependent моделей. Модель не вызывается напрямую, её значение устанавливается в middleware с immutable snapshot.
 
 ```typescript
 export interface ExpressRequestParams extends OJson {
@@ -194,18 +193,31 @@ export interface ExpressRequestParams extends OJson {
   body: Json;
 }
 
-function RequestParams(props: OJson, ctx: ExpressContext): ExpressRequestParams {
-  return {
-    params: (ctx.req?.params || {}) as Record<string, string>,
-    query: (ctx.req?.query || {}) as Record<string, string>,
-    body: (ctx.req?.body || {}) as Json,
-  };
+// Request-dependent model - should be set via ctx.set() in middleware
+function RequestParams(): ExpressRequestParams {
+  throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
+RequestParams.displayName = 'RequestParams';
+
+// In middleware
+req.ctx.set(RequestParams, {
+  params: {...req.params} as Record<string, string>,
+  query: {...req.query} as Record<string, string>,
+  body: req.body ? JSON.parse(JSON.stringify(req.body)) : {},
+} as ExpressRequestParams);
 
 // Использование
-const params = await req.ctx.request(RequestParams) as ExpressRequestParams;
+const params = await req.ctx.request(RequestParams);
 const id = params.params.id; // типобезопасно
 ```
+
+**Преимущества**:
+- Immutable snapshots предотвращают проблемы с мутабельностью
+- Только нужные данные snapshot'ятся, не весь request объект
+- Детерминированная мемоизация работает корректно
+- Явный контроль над request-dependent моделями
+
+См. [ADR 0002](../../docs/adr/0002-ctx-set-pattern.md) для деталей.
 
 **Преимущества**:
 - Меньше кастов

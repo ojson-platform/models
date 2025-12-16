@@ -45,16 +45,27 @@ export function initTelemetry() {
   });
 
   sdkInstance.start();
-  console.log('✅ OpenTelemetry SDK initialized');
-  console.log('   Traces will be exported if OTEL_EXPORTER_OTLP_ENDPOINT is configured');
-  console.log('   Example: OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces');
+  
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    console.log('✅ OpenTelemetry SDK initialized');
+    console.log('   Traces will be exported if OTEL_EXPORTER_OTLP_ENDPOINT is configured');
+    console.log('   Example: OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces');
+  }
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
     if (sdkInstance) {
       sdkInstance.shutdown()
-        .then(() => console.log('✅ OpenTelemetry SDK shutdown'))
-        .catch((error) => console.error('❌ Error shutting down OpenTelemetry SDK', error))
+        .then(() => {
+          if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+            console.log('✅ OpenTelemetry SDK shutdown');
+          }
+        })
+        .catch((error) => {
+          if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+            console.error('❌ Error shutting down OpenTelemetry SDK', error);
+          }
+        })
         .finally(() => process.exit(0));
     }
   });
