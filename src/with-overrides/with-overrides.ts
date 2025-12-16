@@ -1,6 +1,6 @@
 import type {Model} from '../types';
 import type {WithModels} from '../with-models';
-import type {Context} from '../context';
+import type {BaseContext} from '../context';
 
 /**
  * Map of model overrides.
@@ -21,9 +21,9 @@ export type Overrides = Map<Model, Model>;
  * @param overrides - Map of model overrides
  * @internal
  */
-const wrapCreate = (create: WithModels<Context>['create'], overrides: Overrides) =>
-    function(this: WithModels<Context>, name: string) {
-        return wrapContext(create.call(this, name), overrides);
+const wrapCreate = (create: WithModels<BaseContext>['create'], overrides: Overrides) =>
+    function(this: WithModels<BaseContext>, name: string) {
+        return wrapBaseContext(create.call(this, name), overrides);
     };
 
 /**
@@ -37,8 +37,8 @@ const wrapCreate = (create: WithModels<Context>['create'], overrides: Overrides)
  * @param overrides - Map of model overrides
  * @internal
  */
-const wrapRequest = (request: WithModels<Context>['request'], overrides: Overrides) =>
-    function(this: WithModels<Context>, model: Model, props: unknown) {
+const wrapRequest = (request: WithModels<BaseContext>['request'], overrides: Overrides) =>
+    function(this: WithModels<BaseContext>, model: Model, props: unknown) {
         const overridden = getOverridden(model, overrides);
 
         return request.call(this, overridden || model, props as any);
@@ -54,7 +54,7 @@ const wrapRequest = (request: WithModels<Context>['request'], overrides: Overrid
  * @returns Enhanced context with override-aware `request`
  * @internal
  */
-const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, overrides: Overrides) => {
+const wrapBaseContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, overrides: Overrides) => {
     Object.assign(ctx, {
         create: wrapCreate(ctx.create, overrides),
         request: wrapRequest(ctx.request, overrides),
@@ -86,13 +86,13 @@ const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, overrides: Overr
  *   withOverrides(overrides),
  * ]);
  *
- * const ctx = wrap(new Context('request'));
+ * const ctx = wrap(new BaseContext('request'));
  * // All ctx.request(OriginalModel, ...) calls will actually invoke MockModel.
  * ```
  */
 export function withOverrides(overrides: Overrides) {
-    return function<CTX extends WithModels<Context>>(ctx: CTX) {
-        return wrapContext(ctx, overrides);
+    return function<CTX extends WithModels<BaseContext>>(ctx: CTX) {
+        return wrapBaseContext(ctx, overrides);
     };
 }
 

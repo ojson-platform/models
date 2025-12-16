@@ -1,5 +1,5 @@
 import type { Key, Model, OJson, Json, Actor, ModelProps, ModelResult, ModelCtx } from '../types';
-import type { Context } from '../context';
+import type { BaseContext } from '../context';
 
 import {isGenerator, isPromise, isPlainObject, sign} from '../utils';
 
@@ -67,9 +67,9 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
 
 /**
  * Extended context type that includes model request capabilities.
- * Adds memoization, request lifecycle management, and interrupt handling to a base Context.
+ * Adds memoization, request lifecycle management, and interrupt handling to a base context.
  * 
- * @template T - The base context type (must extend Context)
+ * @template T - The base context type (must extend BaseContext)
  * 
  * @property {Registry} [__Registry__] - Internal registry for memoized model results
  * @property {function(): boolean} isAlive - Checks if context is still alive (not killed)
@@ -87,7 +87,7 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
  * const result = await ctx.request(MyModel, {id: 123});
  * ```
  */
-export type WithModels<T extends Context> = T & {
+export type WithModels<T extends BaseContext> = T & {
     [__Registry__]: Registry;
     isAlive(): boolean;
     kill(): typeof Dead;
@@ -101,7 +101,20 @@ export type WithModels<T extends Context> = T & {
         value: ModelResult<M>,
         props?: ModelProps<M>
     ): void;
-    create(...args: Parameters<Context['create']>): WithModels<T>;
+    /**
+     * Emits an event for observability purposes.
+     * 
+     * This is a no-op by default and can be overridden by telemetry helpers
+     * (e.g., `withTelemetry`) to record events in traces.
+     * 
+     * Other helpers (e.g., `withCache`) can call this method to log events
+     * without knowing if telemetry is enabled.
+     * 
+     * @param name - Event name (e.g., 'cache.hit', 'cache.miss', 'cache.update')
+     * @param attributes - Optional attributes to attach to the event
+     */
+    event(name: string, attributes?: Record<string, unknown>): void;
+    create(...args: Parameters<T['create']>): WithModels<T>;
 };
 
 /**
@@ -118,7 +131,7 @@ export type WithModels<T extends Context> = T & {
  * @template Props - The input parameters type
  * @template Result - The return type
  * 
- * @this {WithModels<Context>} - The context with model capabilities
+ * @this {WithModels<BaseContext>} - The context with model capabilities
  * @param model - The model to execute (function or object with action method)
  * @param props - Optional input parameters for the model. Defaults to empty object if not provided.
  * @returns Promise resolving to model result
@@ -131,7 +144,7 @@ export type WithModels<T extends Context> = T & {
  * @internal
  */
 async function request<M extends Model<any, any, any>>(
-    this: WithModels<Context>,
+    this: WithModels<BaseContext>,
     model: M,
     props?: ModelProps<M>
 ): Promise<ModelResult<M>> {
@@ -167,7 +180,7 @@ async function request<M extends Model<any, any, any>>(
         throw new TypeError('Unexpected model type for ' + displayName);
     }
 
-    const promise = this.call(displayName, async (ctx: WithModels<Context>) => {
+    const promise = this.call(displayName, async (ctx: WithModels<BaseContext>) => {
         if (!ctx.isAlive()) {
             return Dead;
         }
@@ -236,7 +249,7 @@ async function request<M extends Model<any, any, any>>(
  * 
  * @internal
  */
-const wrapCreate = <CTX extends Context>(create: CTX['create']) =>
+const wrapCreate = <CTX extends BaseContext>(create: CTX['create']) =>
     function (this: WithModels<CTX>, name: string) {
         const child = create.call(this, name);
         // Share registry with child
@@ -270,7 +283,7 @@ const wrapCreate = <CTX extends Context>(create: CTX['create']) =>
  * using displayName and serialized props (same as `request()`). Throws an error
  * if a value already exists in the registry for the given model+props.
  * 
- * @this {WithModels<Context>} - The context with model capabilities
+ * @this {WithModels<BaseContext>} - The context with model capabilities
  * @param model - The model to set a value for
  * @param value - The pre-computed value for the model
  * @param props - Optional props for the model (defaults to empty object)
@@ -280,7 +293,7 @@ const wrapCreate = <CTX extends Context>(create: CTX['create']) =>
  * @internal
  */
 function set<M extends Model<any, any, any>>(
-    this: WithModels<Context>,
+    this: WithModels<BaseContext>,
     model: M,
     value: ModelResult<M>,
     props?: ModelProps<M>
@@ -304,7 +317,7 @@ function set<M extends Model<any, any, any>>(
     this[__Registry__].set(key, Promise.resolve(value));
 }
 
-const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
+const wrapContext = <CTX extends BaseContext>(ctx: CTX, registry?: Registry) => {
     let state = null;
 
     const parent = (ctx.parent || {
@@ -316,6 +329,9 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
             return await value;
         },
         set: set,
+        event: () => {
+            // No-op by default, can be overridden by withTelemetry
+        },
     }) as WithModels<CTX>;
 
     Object.assign(ctx, {
@@ -325,6 +341,7 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
         request: parent.request,
         resolve: parent.resolve,
         set: parent.set,
+        event: parent.event,
         create: wrapCreate(ctx.create),
     });
 
@@ -379,7 +396,7 @@ const wrapContext = <CTX extends Context>(ctx: CTX, registry?: Registry) => {
  * ```
  */
 export function withModels(registry: Registry) {
-    return function<CTX extends Context>(ctx: CTX) {
+    return function<CTX extends BaseContext>(ctx: CTX) {
         return wrapContext(ctx, registry);
     };
 }

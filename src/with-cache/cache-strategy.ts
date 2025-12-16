@@ -1,6 +1,6 @@
 /* eslint-disable new-cap */
 import type {Model, OJson, Json} from '../types';
-import type {Context} from '../context';
+import type {BaseContext} from '../context';
 import type {Request, WithModels} from '../with-models';
 import type {Cache, CacheConfig, CacheProvider} from './cache';
 import type {WithCache} from './with-cache';
@@ -146,7 +146,7 @@ const getTTL = (strategy: CacheStrategy, config: CacheConfig) => {
  * ```
  */
 export const CacheOnly = Strategy('cache-only', (_config, cache) => {
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json | undefined> {
+    return async function(this: WithCache<WithModels<BaseContext>>, model: Model, props: OJson): Promise<Json | undefined> {
         return cache.get(cache.key(model, props));
     };
 });
@@ -168,7 +168,7 @@ export const CacheOnly = Strategy('cache-only', (_config, cache) => {
  * ```
  */
 export const NetworkOnly = Strategy('network-only', (_config, _cache, request) => {
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
+    return async function(this: WithCache<WithModels<BaseContext>>, model: Model, props: OJson): Promise<Json> {
         return request.call(this, model, props);
     };
 });
@@ -208,7 +208,7 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
     const fromNetwork = NetworkOnly(config, cache, request);
     const providerName = getProviderName(cache.provider);
 
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
+    return async function(this: WithCache<WithModels<BaseContext>>, model: Model, props: OJson): Promise<Json> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {
@@ -284,7 +284,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
     const fromNetwork = NetworkOnly(config, cache, request);
     const providerName = getProviderName(cache.provider);
 
-    return async function(this: WithCache<WithModels<Context>>, model: Model, props: OJson): Promise<Json> {
+    return async function(this: WithCache<WithModels<BaseContext>>, model: Model, props: OJson): Promise<Json> {
         const cachedResult = await fromCache.call(this, model, props);
 
         if (isEmptyValue(cachedResult)) {

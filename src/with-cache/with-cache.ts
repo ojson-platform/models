@@ -1,5 +1,5 @@
 import type {Model} from '../types';
-import type {Context} from '../context';
+import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
 import type {CacheConfig, CacheProvider} from './cache';
 import type {CacheStrategy} from './cache-strategy';
@@ -16,7 +16,7 @@ const __CacheDisabled__ = Symbol('CacheDisabled');
  * 
  * @example
  * ```typescript
- * function MyModel(props: OJson, ctx: Context): OJson {
+ * function MyModel(props: OJson, ctx: BaseContext): OJson {
  *   return { data: 'value' };
  * }
  * MyModel.displayName = 'MyModel';
@@ -31,8 +31,8 @@ export type WithCacheModel = Model & {
     cacheStrategy?: CacheStrategy;
 };
 
-/** Context extended with cache controls and strategy support. */
-export type WithCache<T extends WithModels<Context>> = T & {
+/** BaseContext extended with cache controls and strategy support. */
+export type WithCache<T extends WithModels<BaseContext>> = T & {
     [__CacheDisabled__]: boolean;
     /** Globally disables caching for this context and all descendants. */
     disableCache(): void;
@@ -41,8 +41,8 @@ export type WithCache<T extends WithModels<Context>> = T & {
 };
 
 /** @internal Wraps `ctx.request` with cache strategy logic. */
-const wrapRequest = (request: WithModels<Context>['request'], cache: Cache) =>
-    async function (this: WithCache<WithModels<Context>>, model: WithCacheModel, props, ...args) {
+const wrapRequest = (request: WithModels<BaseContext>['request'], cache: Cache) =>
+    async function (this: WithCache<WithModels<BaseContext>>, model: WithCacheModel, props, ...args) {
         const strategy = model.cacheStrategy;
         if (!strategy || this[__CacheDisabled__]) {
             return request.call(this, model, props);
@@ -55,13 +55,13 @@ const wrapRequest = (request: WithModels<Context>['request'], cache: Cache) =>
     };
 
 /** @internal Wraps `ctx.create` so children inherit cache behavior. */
-const wrapCreate = (create: WithModels<Context>['create'], cache: Cache) =>
-    function (this: WithCache<WithModels<Context>>, name: string) {
-        return wrapContext(create.call(this, name), cache);
+const wrapCreate = (create: WithModels<BaseContext>['create'], cache: Cache) =>
+    function (this: WithCache<WithModels<BaseContext>>, name: string) {
+        return wrapBaseContext(create.call(this, name), cache);
     };
 
-/** @internal Attaches cache state and methods to a `WithModels<Context>`. */
-const wrapContext = (ctx: WithModels<Context>, cache: Cache) => {
+/** @internal Attaches cache state and methods to a `WithModels<BaseContext>`. */
+const wrapBaseContext = (ctx: WithModels<BaseContext>, cache: Cache) => {
     let disabled = false;
 
     Object.assign(ctx, {
@@ -89,20 +89,20 @@ const wrapContext = (ctx: WithModels<Context>, cache: Cache) => {
         }
     });
 
-    return ctx as WithCache<WithModels<Context>>;
+    return ctx as WithCache<WithModels<BaseContext>>;
 };
 
 /**
- * Enhances `WithModels<Context>` with cache strategies and runtime cache controls.
+ * Enhances `WithModels<BaseContext>` with cache strategies and runtime cache controls.
  *
- * The `createContext` factory is used only by `Cache.update` to build a background
+ * The `createBaseContext` factory is used only by `Cache.update` to build a background
  * context. If the created context has `disableCache()`, it will be called automatically
  * to prevent recursive caching.
  * 
  * @param config - TTL configuration per cache strategy name
  * @param provider - Low-level cache storage implementation
- * @param createContext - Factory for creating background contexts used by `cache.update`.
- *   Should create a `WithModels<Context>` instance (typically via `withModels`
+ * @param createBaseContext - Factory for creating background contexts used by `cache.update`.
+ *   Should create a `WithModels<BaseContext>` instance (typically via `withModels`
  *   and optional helpers like `withTelemetry`/`withDeadline`). If the factory
  *   applies `withCache`, `disableCache()` will be called automatically on the
  *   created context to prevent recursive caching.
@@ -110,11 +110,11 @@ const wrapContext = (ctx: WithModels<Context>, cache: Cache) => {
 export function withCache(
     config: CacheConfig,
     provider: CacheProvider,
-    createContext: (name: string) => WithModels<Context>,
+    createBaseContext: (name: string) => WithModels<BaseContext>,
 ) {
-    const cache = new Cache(config, provider, createContext);
+    const cache = new Cache(config, provider, createBaseContext);
 
-    return function(ctx: WithModels<Context>) {
-        return wrapContext(ctx, cache);
+    return function(ctx: WithModels<BaseContext>) {
+        return wrapBaseContext(ctx, cache);
     };
 }

@@ -1,4 +1,4 @@
-import type {Context} from '../context';
+import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
 
 import {wait} from '../utils';
@@ -30,12 +30,12 @@ import {wait} from '../utils';
  *   withDeadline(5000), // 5s deadline for all model resolutions
  * ]);
  *
- * const ctx = wrap(new Context('request'));
+ * const ctx = wrap(new BaseContext('request'));
  * const result = await ctx.request(SlowModel); // Will be cancelled after 5s
  * ```
  */
 export function withDeadline(timeout = 0) {
-    return function<CTX extends WithModels<Context>>(ctx: CTX) {
+    return function<CTX extends WithModels<BaseContext>>(ctx: CTX) {
         // No-op when timeout is falsy (0 or negative): keep original behavior.
         if (timeout <= 0) {
             return ctx;

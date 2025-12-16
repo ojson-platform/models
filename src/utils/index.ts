@@ -1,5 +1,5 @@
 import type { Model, OJson } from '../types';
-import type { Context } from '../context';
+import type { BaseContext } from '../context';
 
 import {URLSearchParams} from 'url';
 
@@ -29,17 +29,17 @@ type WrapperOutput<W> = W extends (...args: any[]) => infer Output ? Output : ne
  * https://stackoverflow.com/questions/53173203/typescript-recursive-function-composition
  * 
  * This builds a chain where:
- * - First wrapper: Context -> R1
+ * - First wrapper: BaseContext -> R1
  * - Second wrapper: R1 -> R2 (if R1 is compatible)
  * - Third wrapper: R2 -> R3 (if R2 is compatible)
  * - Result: final output type
  */
 type ComposeResult<
     W extends readonly WrapperFunc[],
-    Acc extends Context = Context
+    Acc extends BaseContext = BaseContext
 > = W extends readonly [infer First, ...infer Rest]
     ? First extends WrapperFunc
-        ? WrapperInput<First> extends Acc
+        ? Acc extends WrapperInput<First>
             ? Rest extends readonly WrapperFunc[]
                 ? ComposeResult<Rest, WrapperOutput<First>>
                 : WrapperOutput<First>
@@ -65,20 +65,20 @@ type ComposeResult<
  * @example
  * ```typescript
  * const wrap = compose([
- *   withModels(registry),           // Context -> WithModels<Context>
- *   withCache(config, cache, createBackgroundCtx), // WithModels<Context> -> WithCache<WithModels<Context>>
- *   withDeadline(5000)              // WithModels<Context> -> WithModels<Context>
+ *   withModels(registry),           // BaseContext -> WithModels<BaseContext>
+ *   withCache(config, cache, createBackgroundCtx), // WithModels<BaseContext> -> WithCache<WithModels<BaseContext>>
+ *   withDeadline(5000)              // WithModels<BaseContext> -> WithModels<BaseContext>
  * ]);
  * 
- * const ctx = wrap(new Context('request'));
+ * const ctx = wrap(new BaseContext('request'));
  * // ctx type is inferred from the composition chain
  * ```
  */
 export function compose<W extends readonly [WrapperFunc, ...Array<WrapperFunc>]>(
     wrappers: W
-): <CTX extends Context>(ctx: CTX) => ComposeResult<W, CTX> {
-    return function<CTX extends Context>(ctx: CTX): ComposeResult<W, CTX> {
-        let currentCtx: Context = ctx;
+): <CTX extends BaseContext>(ctx: CTX) => ComposeResult<W, CTX> {
+    return function<CTX extends BaseContext>(ctx: CTX): ComposeResult<W, CTX> {
+        let currentCtx: BaseContext = ctx;
         
         for (const wrapper of wrappers) {
             currentCtx = wrapper(currentCtx);

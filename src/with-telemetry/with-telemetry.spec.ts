@@ -39,8 +39,8 @@ describe('withTelemetry', () => {
 
         expect(endSpy).toHaveBeenCalledTimes(1);
         // endTime is set in Context.end(), so it should be defined after ctx.end()
-        expect(ctx.endTime).toBeDefined();
-        expect(endSpy).toHaveBeenCalledWith(ctx.endTime);
+        expect((ctx as any).endTime).toBeDefined();
+        expect(endSpy).toHaveBeenCalledWith((ctx as any).endTime);
     });
 
     it('should set span status to ERROR and record error when context fails', () => {
@@ -522,7 +522,7 @@ describe('withTelemetry', () => {
         const childSpan = getSpan(child as any)!;
         const addEventSpy = vi.spyOn(childSpan, 'addEvent');
 
-        child.event('child event', {data: 'value'});
+        (child as any).event('child event', {data: 'value'});
 
         expect(addEventSpy).toHaveBeenCalledTimes(1);
         expect(addEventSpy).toHaveBeenCalledWith('child event', {data: 'value'});
@@ -796,8 +796,8 @@ describe('withTelemetry', () => {
         // Should end the span
         expect(endSpy).toHaveBeenCalledTimes(1);
         // endTime is set in Context.fail(), so it should be defined after ctx.fail()
-        expect(ctx.endTime).toBeDefined();
-        expect(endSpy).toHaveBeenCalledWith(ctx.endTime);
+        expect((ctx as any).endTime).toBeDefined();
+        expect(endSpy).toHaveBeenCalledWith((ctx as any).endTime);
     });
 
     it('should not set status or end span if span is not recording', () => {

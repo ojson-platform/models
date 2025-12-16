@@ -20,7 +20,15 @@ This is a TypeScript library that provides infrastructure helpers for building s
 
 ### Context
 
-`Context` represents the execution context for a request lifecycle. It tracks:
+The library uses a minimal `BaseContext` interface that defines the required lifecycle API:
+- `name: string` - Context name
+- `parent: BaseContext | undefined` - Parent context for hierarchy
+- `create(name: string): BaseContext` - Creates a child context
+- `end(): void` - Marks context as complete
+- `fail(error?: Error | unknown): void` - Marks context as failed
+- `call(name: string, action: Function): Promise<unknown>` - Executes action in child context
+
+`Context` is a concrete implementation of `BaseContext` that tracks:
 - Name and parent context (hierarchical structure)
 - Start/end time and duration
 - Errors
@@ -30,6 +38,8 @@ const ctx = new Context('request-name');
 ctx.end(); // Mark as complete
 ctx.fail(error); // Mark as failed with error
 ```
+
+**Important**: Helpers depend on `BaseContext` interface, not the concrete `Context` class. This allows applications to provide their own context implementations as long as they implement the `BaseContext` interface.
 
 ### OJson Type
 
@@ -86,6 +96,8 @@ The primary helper that adds the `request` method to context for calling models 
 - Shared registry enables memoization across nested contexts in the same request
 - Models can access parent context through `ctx.parent`
 - Props parameter is optional (defaults to empty object if not provided)
+- Adds `event()` method (no-op by default, can be overridden by other helpers like `withTelemetry`)
+- Adds `set()` method for pre-computing request-dependent model values
 
 **Basic usage:**
 ```typescript
@@ -253,10 +265,12 @@ The `resolve` method is used internally to handle promises. It can be overridden
   - Sets up parent-child span relationships based on context hierarchy
   - Records model props/result/errors as span attributes and events
   - Marks spans as failed when `ctx.fail()` is called
+  - Wraps `ctx.event()` from `withModels` to record events in OpenTelemetry spans
 - Models can optionally provide telemetry configuration via `displayProps`, `displayResult`, and `displayTags` properties.
 - Props are recorded before model execution, results after (if not `Dead`).
 - Only object errors get error events (strings and primitives only set status).
 - `ctx.create` is wrapped so that child contexts inherit telemetry and create child spans.
+- The `event()` method is available on all `WithModels` contexts (as a no-op), and `withTelemetry` wraps it to add span recording. Other helpers (e.g., `withCache`) can call `ctx.event()` without knowing if telemetry is enabled.
 
 #### Helper module structure and API patterns
 
@@ -292,10 +306,10 @@ The `resolve` method is used internally to handle promises. It can be overridden
 
 ### ctx.set() pattern: agent-facing notes
 
-- `ctx.set(model, value)` allows setting pre-computed values for request-dependent models.
+- `ctx.set(model, value)` is a method added by `withModels` that allows setting pre-computed values for request-dependent models.
 - This pattern is used for models that depend on request data (e.g., Express `Request` parameters) to avoid mutability issues and ensure deterministic memoization.
 - Models using this pattern should throw an error if called directly, indicating they should be set via `ctx.set()`.
-- Values set via `ctx.set()` are stored in a shared map and returned when the model is requested via `ctx.request()`.
+- Values set via `ctx.set()` are stored in the same registry as `ctx.request()` and returned when the model is requested.
 - This pattern ensures immutable snapshots of only the data actually needed, avoiding god objects and unnecessary copying.
 - See [ADR 0002](../docs/adr/0002-ctx-set-pattern.md) for detailed rationale and implementation.
 

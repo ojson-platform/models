@@ -2,7 +2,7 @@ import type {Key, Model, OJson, Json} from '../types';
 import type {WithModels} from '../with-models';
 
 import {InterruptedError, withModels} from '../with-models';
-import {Context} from '../context';
+import type {BaseContext} from '../context';
 import {sign} from '../utils';
 
 /**
@@ -53,11 +53,11 @@ export class Cache implements CacheProvider {
     private _updates = new Map<Key, Promise<void>>();
 
     /**
-     * Factory for creating a background `WithModels<Context>` used by `update()`.
+     * Factory for creating a background `WithModels<BaseContext>` used by `update()`.
      * If the created context has `disableCache()`, it will be called automatically
      * to prevent recursive caching.
      */
-    private _createContext: (name: string) => WithModels<Context>;
+    private _createBaseContext: (name: string) => WithModels<BaseContext>;
 
     /** Cache configuration with TTL settings per strategy. */
     get config() {
@@ -72,17 +72,17 @@ export class Cache implements CacheProvider {
     /**
      * @param config - TTL configuration per cache strategy name
      * @param provider - Low-level cache storage implementation
-     * @param createContext - Factory for creating background contexts used by `update()`.
+     * @param createBaseContext - Factory for creating background contexts used by `update()`.
      *   If the created context has `disableCache()`, it will be called automatically.
      */
     constructor(
         config: CacheConfig,
         provider: CacheProvider,
-        createContext: (name: string) => WithModels<Context>,
+        createBaseContext: (name: string) => WithModels<BaseContext>,
     ) {
         this._config = config;
         this._provider = provider;
-        this._createContext = createContext;
+        this._createBaseContext = createBaseContext;
     }
 
     /**
@@ -119,7 +119,7 @@ export class Cache implements CacheProvider {
     /**
      * Recomputes and stores a model result for the given key.
      *
-     * - runs the model once in a background `WithModels<Context>`;
+     * - runs the model once in a background `WithModels<BaseContext>`;
      * - shares in‑flight updates for the same key;
      * - skips `set` when execution is interrupted with `InterruptedError`.
      * 
@@ -139,7 +139,7 @@ export class Cache implements CacheProvider {
         // Create new update promise
         const updatePromise = (async () => {
             try {
-                const ctx = this._createContext('cache');
+                const ctx = this._createBaseContext('cache');
 
                 // Disable cache on the context if it has cache capabilities
                 // This prevents recursive caching when the factory applies withCache

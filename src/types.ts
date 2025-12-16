@@ -1,4 +1,4 @@
-import type {Context} from './context';
+import type {BaseContext} from './context';
 
 export type Key = string & {
     __type: 'model-key';
@@ -20,13 +20,13 @@ export type OJson = {
  */
 export type Json = OJson | Json[] | Primitive;
 
-export type Actor<Props extends OJson = OJson, Result extends Json = Json, Ctx extends Context = Context> =
+export type Actor<Props extends OJson = OJson, Result extends Json = Json, Ctx extends BaseContext = BaseContext> =
     (props: Props, context: Ctx) => Result | Promise<Result> | Generator<Result>;
 
 export type Model<
     Props extends OJson = OJson,
     Result extends Json = Json,
-    Ctx extends Context = Context
+    Ctx extends BaseContext = BaseContext
 > = (Actor<Props, Result, Ctx> | {action: Actor<Props, Result, Ctx>}) & {
     displayName: string;
 };

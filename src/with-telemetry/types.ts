@@ -1,7 +1,7 @@
 import type {Attributes, Span} from '@opentelemetry/api';
 import type {AsyncLocalStorage} from 'node:async_hooks';
 
-import type {Context} from '../context';
+import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
 import type {Model, OJson, Json} from '../types';
 import type {ModelInfo} from './utils';
@@ -49,7 +49,7 @@ export const __ModelStorage__: unique symbol = Symbol('TelModelStorage');
  *
  * All standard `WithModels` and `Context` methods remain available.
  */
-export type WithTelemetry<T extends WithModels<Context>> = T & {
+export type WithTelemetry<T extends WithModels<BaseContext>> = T & {
   /**
    * Creates a child context that also has telemetry enabled.
    *
@@ -65,9 +65,9 @@ export type WithTelemetry<T extends WithModels<Context>> = T & {
   /**
    * Emits an event that will be recorded in the OpenTelemetry span.
    *
-   * This method is used by other helpers (e.g., `withCache`) to log events
-   * without knowing if telemetry is enabled. If telemetry is not enabled,
-   * the base `Context.event()` no-op method is used.
+   * This method wraps the base `event()` from `withModels` (which is a no-op)
+   * and adds OpenTelemetry span recording. Other helpers (e.g., `withCache`) can
+   * call this method to log events without knowing if telemetry is enabled.
    */
   event(name: string, attributes?: Record<string, unknown>): void;
 };
