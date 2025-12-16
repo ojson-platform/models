@@ -3,10 +3,12 @@ import {dirname, join, extname} from 'node:path';
 import {accessSync} from 'node:fs';
 
 const transformer = (_) => (ctx) => (sourceFile) => {
+    const sourceFileName = sourceFile.fileName;
+    const sourceDir = dirname(sourceFileName);
+    
     function visitNode(node) {
         if (shouldMutateModuleSpecifier(node)) {
-            const root = dirname(node.parent.resolvedPath);
-            const file = access(root, node.moduleSpecifier.text);
+            const file = access(sourceDir, node.moduleSpecifier.text);
             const path = ctx.factory.createStringLiteral(file);
 
             if (ts.isImportDeclaration(node)) {
