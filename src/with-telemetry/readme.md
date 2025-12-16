@@ -8,6 +8,17 @@ OpenTelemetry tracing integration for model execution and context lifecycle.
 
 This helper enables observability in your application by providing structured tracing data that can be exported to OpenTelemetry-compatible backends (e.g., Jaeger, Zipkin, Prometheus).
 
+### Runtime Compatibility
+
+**Important**: `withTelemetry` uses `AsyncLocalStorage` from `node:async_hooks` to correctly record model attributes on child spans. This means:
+
+- ✅ **Node.js**: Fully supported (native support)
+- ✅ **Deno**: Supported via `node:async_hooks` compatibility layer
+- ✅ **Bun**: Supported via `node:async_hooks` compatibility layer
+- ❌ **Browser**: Not supported (no `AsyncLocalStorage` equivalent)
+
+For browser environments, consider using a different telemetry approach or running your models server-side only.
+
 ## Key Concepts
 
 ### Spans and Context Hierarchy
@@ -168,6 +179,31 @@ const child = parent.create('child-operation');
 // child span will be a child of parent span in OpenTelemetry
 ```
 
+### Incoming Parent Spans (Trace Headers)
+
+`withTelemetry` also respects the **active OpenTelemetry context** when creating the root context span:
+
+- If the context has a parent in the `Context` hierarchy (`ctx.parent`), that span is used as the parent.
+- Otherwise, the currently active OpenTelemetry span (e.g. extracted from HTTP headers) is used as the parent.
+
+This allows you to link your server spans to incoming traces from gateways or other services.
+
+Example with Express and W3C trace headers:
+
+```typescript
+import {context as otelContext, propagation} from '@opentelemetry/api';
+
+// Extract trace headers and make them active for the request lifecycle
+app.use((req, res, next) => {
+  const carrier = req.headers as Record<string, unknown>;
+  const extracted = propagation.extract(otelContext.active(), carrier);
+  otelContext.with(extracted, () => next());
+});
+
+// Later, when you create a Context and wrap it with withTelemetry,
+// the root context span will use the extracted parent span (if any).
+```
+
 ### Error Handling
 
 Errors are automatically recorded when `ctx.fail()` is called:
@@ -184,14 +220,41 @@ try {
 
 Note: Only object errors get error events (strings and other primitives only set status).
 
-### Dead-aware Behavior
+### Manual instrumentation inside models
 
-When a context is killed and `request()` returns `Dead`, result telemetry is not recorded (props are still recorded, as they're set before execution):
+During model execution, `withTelemetry` makes the **model span** the active
+OpenTelemetry span. This allows models (and libraries they call) to access and
+annotate the current span using standard OTEL APIs:
+
+```typescript
+import {context as otelContext, trace} from '@opentelemetry/api';
+
+async function MyModel(props: OJson, ctx: Context) {
+  const span = trace.getSpan(otelContext.active());
+  span?.addEvent('my-model-start', {id: (props as any).id});
+
+  // Any nested spans created here (e.g. HTTP client instrumentation)
+  // will automatically become children of this model span.
+
+  return {result: 'ok'};
+}
+MyModel.displayName = 'MyModel';
+```
+
+This design keeps the internal span storage (`__Span__`) encapsulated while
+making the current model span easily available through the OpenTelemetry API.
+
+### Interruption-aware behavior
+
+When a context is killed (or a deadline is reached) and model execution is
+interrupted, `ctx.request()` will fail with `InterruptedError`. In this case
+result telemetry is not recorded (props are still recorded, as they're set
+before execution):
 
 ```typescript
 ctx.kill();
-const result = await ctx.request(MyModel, {id: 1});
-// Props are recorded, but result event is not (since result === Dead)
+await expect(ctx.request(MyModel, {id: 1})).rejects.toThrow(InterruptedError);
+// Props are recorded, but result event is not
 ```
 
 ## API Overview
@@ -232,8 +295,8 @@ type PropsFilter =
 When testing code that uses `withTelemetry`:
 
 - Spans are created automatically but may not be exported unless SDK is configured
+- Use `getSpan(ctx)` to obtain the span associated with a context (intended for tests and debugging only)
 - Use `vi.spyOn(span, 'setAttributes')` and `vi.spyOn(span, 'addEvent')` to verify telemetry calls
-- Access span via `(ctx as any)[__TelSpan__]` (exported symbol for testing)
 - Test that props, results, and errors are recorded correctly
 - Verify that child contexts create child spans
 - Test Dead-aware behavior (props recorded, results not)
@@ -255,4 +318,5 @@ See `src/with-telemetry/with-telemetry.spec.ts` for examples.
 - [withCache](../with-cache/readme.md) - Adds caching layer
 - [withDeadline](../with-deadline/readme.md) - Adds timeout/deadline support
 - [withOverrides](../with-overrides/readme.md) - Model substitution for testing
+- [ADR 0003: AsyncLocalStorage for Telemetry](../../docs/adr/0003-asynclocalstorage-for-telemetry.md) - Architectural decision on using AsyncLocalStorage for model context
 

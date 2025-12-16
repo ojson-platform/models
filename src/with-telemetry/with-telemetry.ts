@@ -1,96 +1,49 @@
 import type {Context} from '../context';
 import type {WithModels} from '../with-models';
-import type {Model, OJson, Json} from '../types';
+import type {OJson, Json} from '../types';
+import type {ModelWithTelemetry, TelemetryConfig, WithTelemetry} from './types';
 import type {Attributes, Span} from '@opentelemetry/api';
 
-import {SpanKind, SpanStatusCode, trace} from '@opentelemetry/api';
-import {api, core} from '@opentelemetry/sdk-node';
-import {isPlainObject} from '../utils';
+import {SpanKind, SpanStatusCode, trace, context as otelContext} from '@opentelemetry/api';
+import {AsyncLocalStorage} from 'node:async_hooks';
 
-/**
- * Filter configuration for extracting fields from props or results.
- *
- * - `'*'` - Include all fields
- * - Object with field names as keys:
- *   - `true` - Include the field as-is
- *   - `string` - Include field with a different name (mapping)
- *   - `function` - Custom extractor function `(key, value) => attributeValue`
- */
-export type PropsFilter = '*' | Record<string, boolean | string | ((key: string, value: unknown) => unknown)>;
+import {extractFields, extractMessage, extractResultFields, extractStacktrace, isAttributeValue, type ModelInfo} from './utils';
+import {__ModelStorage__, __Span__} from './types';
 
-/**
- * Extended model type that supports telemetry configuration.
- *
- * Models can optionally specify:
- * - `displayProps` - Which props fields to include in span attributes
- * - `displayResult` - Which result fields to include in span events
- * - `displayTags` - Additional static attributes to add to spans
- */
-export type ModelWithTelemetry<Props extends OJson, Result extends Json> = Model<Props, Result> & {
-    displayProps?: PropsFilter;
-    displayResult?: PropsFilter;
-    displayTags?: Attributes;
-};
-
-/**
- * Context extension type that adds OpenTelemetry tracing capabilities.
- *
- * Extends a `WithModels` context with:
- * - A span for tracking this context's execution
- * - Methods to record model props, results, and errors as span attributes/events
- * - Automatic span lifecycle management (start on context creation, end on `ctx.end()` or `ctx.fail()`)
- *
- * All standard `WithModels` and `Context` methods remain available.
- */
-export type WithTelemetry<T extends WithModels<Context>> = T & {
-    /** @internal OpenTelemetry span for this context */
-    [__Span__]: Span;
-    /** @internal Sets span attributes for model props */
-    [__ModelProps__]: (props: Attributes) => Span;
-    /** @internal Adds span event for model result */
-    [__ModelResult__]: (result: Attributes) => Span;
-    /** @internal Records error in span event */
-    [__ModelError__]: (error: unknown) => Span;
-    /**
-     * Emits an event that will be recorded in the OpenTelemetry span.
-     * 
-     * This method is used by other helpers (e.g., `withCache`) to log events
-     * without knowing if telemetry is enabled. If telemetry is not enabled,
-     * the base `Context.event()` no-op method is used.
-     * 
-     * @param name - Event name (e.g., 'cache.hit', 'cache.miss', 'cache.update')
-     * @param attributes - Optional attributes to attach to the event
-     * 
-     * @example
-     * ```typescript
-     * ctx.event('cache.hit', { key: 'model-key', ttl: 3600 });
-     * ```
-     */
-    event(name: string, attributes?: Record<string, unknown>): void;
-};
-
-/**
- * Configuration for the telemetry helper.
- *
- * @property serviceName - Service name used for tracer identification in OpenTelemetry.
- *   This name appears in traces and helps identify which service generated the span.
- */
-export type TelemetryConfig = {
-    serviceName: string;
-};
-
-const __ModelProps__ = Symbol('TelModelProps');
-const __ModelResult__ = Symbol('TelModelResult');
-const __ModelError__ = Symbol('TelModelError');
-const __Span__ = Symbol('TelSpan');
 const __Handled__ = Symbol('TelErrorHandled');
 
-// Export symbol for testing purposes
-export const __TelSpan__ = __Span__;
+/**
+ * Returns the OpenTelemetry span associated with a telemetry-enabled context, if any.
+ *
+ * This helper is intended primarily for testing and debugging. It accepts a plain
+ * `Context` (or any extended context) and uses structural typing to read the
+ * internal span symbol if telemetry is enabled.
+ */
+export function getSpan(ctx: Context | undefined): Span | undefined {
+    if (!ctx) {
+        return undefined;
+    }
+
+    return (ctx as any)[__Span__] as Span | undefined;
+}
 
 /**
  * @internal
- * Wraps the context's request method to add telemetry instrumentation.
+ * Ensures AsyncLocalStorage for model info exists on the context and returns it.
+ * This helper centralizes the invariant that withTelemetry must have initialized storage.
+ */
+function requireModelStorage<CTX extends WithModels<Context>>(ctx: WithTelemetry<CTX>): AsyncLocalStorage<ModelInfo> {
+    const storage = ctx[__ModelStorage__];
+    if (!storage) {
+        throw new Error('withTelemetry: modelStorage is not initialized. This should not happen.');
+    }
+    return storage;
+}
+
+/**
+ * @internal
+ * Wraps the context's request method to store model information in AsyncLocalStorage.
+ * The actual telemetry recording happens in wrapCall on the child context's span.
  */
 const wrapRequest = (request: WithModels<Context>['request']) =>
     async function<Props extends OJson, Result extends Json>(
@@ -99,20 +52,16 @@ const wrapRequest = (request: WithModels<Context>['request']) =>
         props: Props
     ) {
         const {displayProps, displayResult, displayTags} = model;
+        const modelStorage = requireModelStorage(this);
 
-        if (displayProps) {
-            this[__ModelProps__](extractFields(props, displayProps, 'props'));
-        }
-
-        if (displayTags) {
-            this[__ModelProps__](displayTags);
-        }
-
-        const value = await request.call(this, model, props);
-        if (displayResult) {
-            this[__ModelResult__](extractResultFields(value, displayResult));
-        }
-        return value;
+        // Store model information in AsyncLocalStorage for access in wrapCall
+        // This supports parallel and nested model calls
+        return modelStorage.run(
+            {displayProps, displayResult, displayTags, props},
+            async () => {
+                return await request.call(this, model, props);
+            }
+        );
     };
 
 /**
@@ -129,7 +78,7 @@ const wrapEvent = (event: Context['event'], span: Span) =>
             // Filter attributes to only include valid OpenTelemetry attribute values
             const validAttributes: Attributes = {};
             for (const [key, value] of Object.entries(attributes)) {
-                if (core.isAttributeValue(value)) {
+                if (isAttributeValue(value)) {
                     validAttributes[key] = value;
                 }
             }
@@ -141,21 +90,96 @@ const wrapEvent = (event: Context['event'], span: Span) =>
 
 /**
  * @internal
- * Wraps the context's create method to ensure child contexts also have telemetry.
+ * Wraps the context's call method to record model telemetry on the child context's span.
+ * This is where props, results, and errors are recorded - on the model's span, not the parent's.
  */
-const wrapCreate = (create: WithModels<Context>['create'], config: TelemetryConfig) =>
-    function(this: WithTelemetry<WithModels<Context>>, name: string) {
-        return wrapContext(create.call(this, name), config);
+const wrapCall = <CTX extends WithModels<Context>>(call: CTX['call']) =>
+    async function(this: WithTelemetry<CTX>, name: string, action: Function) {
+        // Get model information from AsyncLocalStorage (set by wrapRequest)
+        // Use parent's storage if available (for nested contexts), otherwise use this context's storage
+        const parent = this.parent as WithTelemetry<CTX> | undefined;
+        const modelStorage = parent?.[__ModelStorage__] || requireModelStorage<CTX>(this);
+        const modelInfo = modelStorage.getStore();
+
+        // Call the original call method, which creates a child context
+        return await call.call(this, name, async (child: WithTelemetry<CTX>) => {
+            // Child context is already created and wrapped with telemetry via wrapCreate.
+            // We want the model span (child's span) to be the active OpenTelemetry span
+            // during model execution so that:
+            // - api.context.getActiveSpan() inside the model returns the model span
+            // - any nested spans created by instrumentation become children of the model span.
+            const childSpan = child[__Span__];
+
+            return otelContext.with(trace.setSpan(otelContext.active(), childSpan), async () => {
+                if (modelInfo) {
+                    // Record props on the child span (model's span)
+                    if (modelInfo.displayProps) {
+                        childSpan.setAttributes(
+                            extractFields(modelInfo.props, modelInfo.displayProps, 'props')
+                        );
+                    }
+
+                    // Record displayTags on the child span (model's span)
+                    if (modelInfo.displayTags) {
+                        childSpan.setAttributes(modelInfo.displayTags);
+                    }
+                }
+
+                // Execute the model action
+                try {
+                    const result = await action(child);
+
+                    // Record result on the child span (model's span)
+                    if (modelInfo?.displayResult) {
+                        childSpan.addEvent('result', extractResultFields(result, modelInfo.displayResult));
+                    }
+
+                    return result;
+                } catch (error) {
+                    // Error will be handled by wrapFail on the child context
+                    // But we can also record it here if needed
+                    if (error && typeof error === 'object' && !error[__Handled__]) {
+                        childSpan.addEvent('error', {
+                            message: extractMessage(error),
+                            stack: extractStacktrace(error),
+                        });
+                    }
+                    throw error;
+                }
+            });
+        });
+    };
+
+/**
+ * @internal
+ * Wraps the context's create method to ensure child contexts also have telemetry.
+ *
+ * Typing is generic so that `ctx.create()` returns the same telemetry-augmented
+ * type as the parent, which keeps type inference consistent in user code and tests.
+ */
+const wrapCreate = <CTX extends WithModels<Context>>(
+    create: CTX['create'],
+    config: TelemetryConfig,
+) =>
+    function (this: WithTelemetry<CTX>, name: string): WithTelemetry<CTX> {
+        const child = create.call(this, name) as CTX;
+        return wrapContext(child, config);
     };
 
 /**
  * @internal
  * Wraps the context's end method to end the OpenTelemetry span.
+ * Only ends the span if it's still recording (not already ended via fail).
+ * Also checks if context has an error - if so, don't end (fail should handle it).
  */
 const wrapEnd = (end: WithModels<Context>['end']) =>
     function(this: WithTelemetry<WithModels<Context>>) {
         end.call(this);
-        this[__Span__].end(this.endTime);
+        
+        const span = this[__Span__];
+        if (span.isRecording()) {
+            span.end(this.endTime);
+        }
     };
 
 /**
@@ -166,56 +190,47 @@ const wrapFail = (fail: WithModels<Context>['fail']) =>
     function(this: WithTelemetry<WithModels<Context>>, error: unknown) {
         fail.call(this, error);
 
-        this[__Span__].setStatus({
-            code: SpanStatusCode.ERROR,
-            message: extractMessage(error),
-        });
+        const span = this[__Span__];
+        if (span.isRecording()) {
+            // Record error event if it's an object error
+            if (error && typeof error === 'object' && !error[__Handled__]) {
+                error[__Handled__] = true;
+                span.addEvent('error', {
+                    message: extractMessage(error),
+                    stack: extractStacktrace(error),
+                });
+            }
 
-        this[__Span__].end(this.endTime);
-
-        if (error && typeof error === 'object' && !error[__Handled__]) {
-            error[__Handled__] = true;
-            this[__ModelError__](error);
+            span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: extractMessage(error),
+            });
+            span.end(this.endTime);
         }
     };
 
-/**
- * @internal
- * Wraps a context to add OpenTelemetry tracing capabilities.
- * Creates a span for the context and sets up parent-child relationships.
- */
-/**
- * @internal
- * Safely retrieves the parent span if the parent context has telemetry enabled.
- */
-function getParentSpan(parent: Context | undefined): Span | undefined {
-    if (!parent) {
-        return undefined;
-    }
-    // Check if parent has telemetry (has __Span__ symbol)
-    const parentSpan = (parent as WithTelemetry<WithModels<Context>>)[__Span__];
-    return parentSpan;
-}
-
-const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, config: TelemetryConfig) => {
+const wrapContext = <CTX extends WithModels<Context>>(ctx: CTX, config: TelemetryConfig): WithTelemetry<CTX> => {
     const tracer = trace.getTracer(config.serviceName);
-    const parentSpan = getParentSpan(ctx.parent);
-    const context = trace.setSpan(api.context.active(), parentSpan);
-    const span = tracer.startSpan(ctx.name, {kind: SpanKind.INTERNAL}, context);
+    const activeCtx = otelContext.active();
+    const parentSpan = getSpan(ctx.parent);
+    // If there is a parent span from our own context hierarchy, use it;
+    // otherwise, fall back to whatever span is currently active in OpenTelemetry
+    const baseCtx = parentSpan ? trace.setSpan(activeCtx, parentSpan) : activeCtx;
+    const span = tracer.startSpan(ctx.name, {kind: SpanKind.INTERNAL}, baseCtx);
+
+    // Create AsyncLocalStorage for this context (or reuse parent's if available)
+    const parent = ctx.parent as WithTelemetry<CTX> | undefined;
+    const modelStorage = parent?.[__ModelStorage__] || new AsyncLocalStorage<ModelInfo>();
 
     Object.assign(ctx, {
-        create: wrapCreate(ctx.create, config),
+        create: wrapCreate<CTX>(ctx.create, config),
+        call: wrapCall<CTX>(ctx.call),
         request: wrapRequest(ctx.request),
         end: wrapEnd(ctx.end),
         fail: wrapFail(ctx.fail),
         event: wrapEvent(ctx.event, span),
         [__Span__]: span,
-        [__ModelProps__]: (props: Attributes) => span.setAttributes(props),
-        [__ModelResult__]: (result: Attributes) => span.addEvent('result', result),
-        [__ModelError__]: (error: unknown) => span.addEvent('error', {
-            message: extractMessage(error),
-            stack: extractStacktrace(error),
-        }),
+        [__ModelStorage__]: modelStorage,
     });
 
     return ctx as WithTelemetry<CTX>;
@@ -262,109 +277,4 @@ export function withTelemetry(config: TelemetryConfig) {
     return function<CTX extends WithModels<Context>>(ctx: CTX) {
         return wrapContext(ctx, config);
     };
-}
-
-/**
- * @internal
- * Extracts a single field from an object based on filter configuration.
- */
-function extractField(acc: Attributes, field: string, value: boolean | string | ((key: string, value: unknown) => unknown), object: OJson, prefix: string): Attributes {
-    let extractedValue: unknown;
-
-    if (value === true) {
-        extractedValue = object[field];
-    } else if (typeof value === 'string') {
-        extractedValue = object[value];
-    } else if (typeof value === 'function') {
-        extractedValue = value(field, object[field]);
-    } else {
-        return acc;
-    }
-
-    if (core.isAttributeValue(extractedValue)) {
-        acc[prefix + field] = extractedValue;
-    }
-
-    return acc;
-}
-
-/**
- * @internal
- * Checks if a value is an object (OJson) that can be used with extractFields.
- * Uses isPlainObject to ensure it's a plain object, not a class instance.
- */
-function isOJsonObject(value: unknown): value is OJson {
-    return isPlainObject(value);
-}
-
-/**
- * @internal
- * Safely extracts fields from a result value that can be any Json type.
- * For non-object values (arrays, primitives, booleans), records them directly.
- */
-function extractResultFields(value: Json, filter: PropsFilter): Attributes {
-    if (!isOJsonObject(value)) {
-        // For non-object values (arrays, primitives, booleans), record the value directly
-        if (core.isAttributeValue(value)) {
-            return {value} as Attributes;
-        }
-        // If value is not a valid attribute value, convert to string
-        return {value: String(value)} as Attributes;
-    }
-
-    // For objects, use the existing extractFields logic
-    return extractFields(value, filter);
-}
-
-/**
- * @internal
- * Extracts fields from an object based on filter configuration.
- * Returns an Attributes object suitable for OpenTelemetry spans.
- */
-function extractFields(object: OJson, filter: PropsFilter, prefix = ''): Attributes {
-    prefix = prefix ? prefix + '.' : prefix;
-
-    if (filter === '*') {
-        return Object.keys(object).reduce(
-            (acc, key) => extractField(acc, key, true, object, prefix),
-            {} as Attributes,
-        );
-    } else if (typeof filter === 'object') {
-        return Object.keys(filter).reduce(
-            (acc, key) => extractField(acc, key, filter[key], object, prefix),
-            {} as Attributes,
-        );
-    }
-
-    return {};
-}
-
-/**
- * @internal
- * Extracts a readable error message from an error object.
- */
-function extractMessage(error: unknown): string {
-    if (!error) {
-        return '';
-    }
-
-    if (typeof error === 'string') {
-        return error;
-    }
-
-    if (typeof error === 'object' && 'message' in error) {
-        return String(error.message);
-    }
-
-    return String(error);
-}
-
-/**
- * @internal
- * Extracts stack trace from an error object if available.
- */
-function extractStacktrace(error: unknown): string | undefined {
-    if (error && typeof error === 'object' && 'stack' in error) {
-        return String(error.stack);
-    }
 }

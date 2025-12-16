@@ -255,6 +255,28 @@ The `resolve` method is used internally to handle promises. It can be overridden
 - Only object errors get error events (strings and primitives only set status).
 - `ctx.create` is wrapped so that child contexts inherit telemetry and create child spans.
 
+#### Helper module structure and API patterns
+
+- **Module decomposition for complex helpers (with-telemetry, with-cache, with-overrides, future `with-*`)**:
+  - Split helpers into three kinds of files:
+    - `*.ts` – core logic and wrapping of the context
+    - `types.ts` – public types and internal symbols for the helper
+    - `utils.ts` – pure helper functions (no side effects, no context mutation)
+  - This keeps files small, improves navigation, and makes it clear where to add new types vs. logic vs. utilities.
+
+- **Public types in `types.ts` (required for helper modules)**:
+  - All public types of a helper module (e.g. `WithTelemetry`, `ModelWithTelemetry`, `TelemetryConfig` for telemetry) must be declared in `types.ts`.
+  - The module entry point (`index.ts`) should:
+    - re-export types via `export type * from './types';`
+    - re-export implementations via `export {withTelemetry, getSpan} from './with-telemetry';` (or analogous functions for other helpers).
+  - New helper modules (future `with-*`) should follow the same pattern: **public types in `types.ts`, implementation in separate files**.
+
+- **Test access to internals without exposing private symbols**:
+  - Internal state (e.g. telemetry span stored under a symbol like `__Span__`) must not be accessed directly outside the helper implementation.
+  - For tests and debugging, prefer small dedicated helpers that expose read-only views of internals, e.g. `getSpan(ctx: Context): Span | undefined` in `with-telemetry`.
+  - Tests and examples should use these helpers instead of `(ctx as any)[internalSymbol]`.
+  - If a new helper needs test-time access to internals, add a focused helper function (similar to `getSpan`) rather than exporting internal symbols.
+
 ### withDeadline: agent-facing notes
 
 - `withDeadline(timeout)` wraps a `WithModels` context and races `ctx.resolve` against a timer:
