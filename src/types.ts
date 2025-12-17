@@ -8,10 +8,14 @@ export type Primitive = null | number | string | boolean;
 
 /**
  * OJson (Object JSON) is a subset of JSON where the top level is always an object.
- * Values can be any JSON-serializable value (Json).
+ * Values can be any JSON-serializable value (Json) or undefined.
+ * 
+ * Undefined values are allowed to support optional properties in model interfaces.
+ * The `sign()` function explicitly skips undefined values when creating cache keys,
+ * ensuring consistent memoization for models with optional properties.
  */
 export type OJson = {
-    [prop: string]: Json;
+    [prop: string]: Json | undefined;
 };
 
 /**

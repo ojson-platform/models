@@ -28,19 +28,64 @@ All result types are fully supported and properly memoized.
 OJson (Object JSON) is a subset of JSON where the top level is always an object. This restriction ensures predictable parameter structures for models:
 
 - **Top level must be an object** (unlike JSON which can be any value)
-- Values can be any JSON-serializable value (Json): primitives, arrays, nested objects, etc.
+- Values can be any JSON-serializable value (Json) or `undefined`: primitives, arrays, nested objects, etc.
+- `undefined` values are allowed to support optional properties in model interfaces
 
 ```typescript
 type OJson = {
-  [prop: string]: Json;
+  [prop: string]: Json | undefined;
 };
 ```
 
-This format is used for model input parameters to enable deterministic serialization for cache keys.
+This format is used for model input parameters to enable deterministic serialization for cache keys. The `sign()` function explicitly skips `undefined` values when creating cache keys, ensuring consistent memoization for models with optional properties.
 
 ### Memoization
 
 Models are automatically memoized based on their `displayName` and serialized parameters. Subsequent calls with the same model and props return the cached result without recomputation.
+
+### Working with ORMs and domain models
+
+Models often sit on top of ORMs or rich domain models. To keep memoization, caching, and telemetry predictable:
+
+- **Do not pass ORM entities as props.** Always pass `OJson` DTOs (IDs, filters, flags):
+
+```ts
+interface GetTodoProps extends OJson {
+  id: string;
+}
+
+function GetTodo(props: GetTodoProps): Promise<TodoDto> {
+  return orm.todos.get(props.id).then(toTodoDto);
+}
+GetTodo.displayName = 'GetTodo';
+```
+
+- **Do not return live ORM entities from models.** Prefer returning plain JSON DTOs:
+
+```ts
+class TodoEntity {
+  id: string;
+  title: string;
+  completed: boolean;
+
+  toJSON() {
+    return {
+      id: this.id,
+      title: this.title,
+      completed: this.completed,
+    };
+  }
+}
+
+// Good: explicit JSON boundary in the model
+function GetTodo(props: GetTodoProps): TodoDto | null {
+  const entity = orm.todos.get(props.id);
+  return entity ? entity.toJSON() : null;
+}
+GetTodo.displayName = 'GetTodo';
+```
+
+The library does **not** automatically call `toJSON` on class instances – the JSON boundary is explicit and controlled by your models. This keeps cache keys, telemetry payloads, and model contracts predictable.
 
 ### Registry
 
@@ -94,6 +139,20 @@ function RequestParams(): RequestParamsResult {
   throw new Error('RequestParams should be set via ctx.set() in middleware');
 }
 RequestParams.displayName = 'RequestParams';
+```
+
+**Note**: You can use `extends OJson` with optional properties:
+
+```typescript
+interface CreateTodoProps extends OJson {
+  title: string;
+  description?: string; // Optional property - OJson allows undefined
+}
+
+function CreateTodo(props: CreateTodoProps): Promise<Todo> {
+  // Implementation
+}
+CreateTodo.displayName = 'CreateTodo';
 ```
 
 **Note**: In middleware, set the value explicitly:

@@ -1,7 +1,7 @@
 import type { Key, Model, OJson, Json, Actor, ModelProps, ModelResult, ModelCtx } from '../types';
 import type { BaseContext } from '../context';
 
-import {isGenerator, isPromise, isPlainObject, sign} from '../utils';
+import {isGenerator, isPromise, isPlainObject, sign, cleanUndefined} from '../utils';
 
 const __Registry__ = Symbol('RequestRegistry');
 
@@ -160,7 +160,12 @@ async function request<M extends Model<any, any, any>>(
 
     props = props ?? ({} as Props);
 
-    const key = `${displayName};${sign(props as OJson)}` as Key;
+    // Clean undefined values from props to ensure models receive "clean" data
+    // as if it were serialized and deserialized. This prevents checks like
+    // `if ('optionalProp' in props)` from working incorrectly.
+    const cleanedProps = cleanUndefined(props as OJson) as Props;
+
+    const key = `${displayName};${sign(cleanedProps as OJson)}` as Key;
 
     if (this[__Registry__].has(key)) {
         const cached = await this[__Registry__].get(key)!;
@@ -185,7 +190,7 @@ async function request<M extends Model<any, any, any>>(
             return Dead;
         }
 
-        let call = action(props as Props, ctx as Ctx);
+        let call = action(cleanedProps, ctx as Ctx);
         let value = undefined, error = undefined, done = false;
 
         if (isPromise<Result>(call)) {
@@ -303,7 +308,8 @@ function set<M extends Model<any, any, any>>(
     }
 
     const {displayName} = model;
-    const modelProps = (props ?? {}) as OJson;
+    // Clean undefined values from props to ensure consistent memoization keys
+    const modelProps = cleanUndefined((props ?? {}) as OJson);
     const key = `${displayName};${sign(modelProps)}` as Key;
 
     if (this[__Registry__].has(key)) {

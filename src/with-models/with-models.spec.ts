@@ -533,4 +533,88 @@ describe('withModels', () => {
             }).toThrow('value already exists in registry');
         });
     });
+
+    describe('cleanUndefined behavior', () => {
+        it('should remove undefined values from props before passing to model', async () => {
+            const registry = new Map();
+            const ctx = withModels(registry)(new Context('test'));
+
+            let receivedProps: any;
+
+            function TestModel(props: {required: string; optional?: string}): string {
+                receivedProps = props;
+                // This check should not work - optional property should not be in props
+                if ('optional' in props) {
+                    throw new Error('Optional property should not be present in props');
+                }
+                return props.required;
+            }
+            TestModel.displayName = 'TestModel';
+
+            const result = await ctx.request(TestModel, {
+                required: 'value',
+                optional: undefined as any
+            });
+
+            expect(result).toBe('value');
+            expect(receivedProps).toEqual({required: 'value'});
+            expect('optional' in receivedProps).toBe(false);
+        });
+
+        it('should ensure consistent memoization keys for props with undefined values', async () => {
+            const registry = new Map();
+            const ctx = withModels(registry)(new Context('test'));
+
+            let callCount = 0;
+
+            function TestModel(props: {required: string; optional?: string}): string {
+                callCount++;
+                return props.required;
+            }
+            TestModel.displayName = 'TestModel';
+
+            // First call with undefined optional property
+            const result1 = await ctx.request(TestModel, {
+                required: 'value',
+                optional: undefined as any
+            });
+
+            // Second call without optional property
+            const result2 = await ctx.request(TestModel, {
+                required: 'value'
+            });
+
+            // Both should return the same result and model should be called only once
+            expect(result1).toBe('value');
+            expect(result2).toBe('value');
+            expect(callCount).toBe(1);
+        });
+
+        it('should clean nested undefined values', async () => {
+            const registry = new Map();
+            const ctx = withModels(registry)(new Context('test'));
+
+            let receivedProps: any;
+
+            function TestModel(props: {nested: {a: string; b?: string}}): string {
+                receivedProps = props;
+                if ('b' in props.nested) {
+                    throw new Error('Optional property should not be present in nested object');
+                }
+                return props.nested.a;
+            }
+            TestModel.displayName = 'TestModel';
+
+            const result = await ctx.request(TestModel, {
+                nested: {
+                    a: 'value',
+                    b: undefined as any
+                }
+            });
+
+            expect(result).toBe('value');
+            expect(receivedProps).toEqual({nested: {a: 'value'}});
+            expect('b' in receivedProps.nested).toBe(false);
+        });
+    });
 });

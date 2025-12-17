@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import type {OJson} from '../types';
 
-import {sign} from './index';
+import {sign, cleanUndefined} from './index';
 
 describe('sign', () => {
     it('should create deterministic signature for simple objects', () => {
@@ -197,6 +197,207 @@ describe('sign', () => {
         const sig2 = sign(props2);
         
         expect(sig1).toBe(sig2);
+    });
+});
+
+describe('cleanUndefined', () => {
+    it('should remove undefined values from simple objects', () => {
+        const props: OJson = {a: '1', b: undefined as any, c: '2'};
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({a: '1', c: '2'});
+        expect('b' in cleaned).toBe(false);
+    });
+
+    it('should handle objects with only undefined values', () => {
+        const props: OJson = {a: undefined as any, b: undefined as any};
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({});
+        expect(Object.keys(cleaned).length).toBe(0);
+    });
+
+    it('should handle empty objects', () => {
+        const props: OJson = {};
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({});
+    });
+
+    it('should recursively clean nested objects', () => {
+        const props: OJson = {
+            a: '1',
+            nested: {
+                b: '2',
+                c: undefined as any,
+                d: '3'
+            },
+            e: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({
+            a: '1',
+            nested: {
+                b: '2',
+                d: '3'
+            }
+        });
+        expect('c' in (cleaned.nested as OJson)).toBe(false);
+        expect('e' in cleaned).toBe(false);
+    });
+
+    it('should remove nested objects that become empty after cleaning', () => {
+        const props: OJson = {
+            a: '1',
+            nested: {
+                b: undefined as any,
+                c: undefined as any
+            }
+        };
+        const cleaned = cleanUndefined(props);
+        
+        // Empty nested object is still a valid value, we only remove undefineds,
+        // not whole objects.
+        expect(cleaned).toEqual({
+            a: '1',
+            nested: {}
+        });
+        expect('nested' in cleaned).toBe(true);
+    });
+
+    it('should preserve arrays', () => {
+        const props: OJson = {
+            items: ['a', 'b', 'c'],
+            empty: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({items: ['a', 'b', 'c']});
+        expect(Array.isArray(cleaned.items)).toBe(true);
+    });
+
+    it('should clean objects inside arrays', () => {
+        const props: OJson = {
+            items: [
+                {a: '1', b: undefined as any, c: '2'},
+                {d: '3', e: undefined as any}
+            ],
+            empty: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({
+            items: [
+                {a: '1', c: '2'},
+                {d: '3'}
+            ]
+        });
+        expect('b' in (cleaned.items as any[])[0]).toBe(false);
+        expect('e' in (cleaned.items as any[])[1]).toBe(false);
+    });
+
+    it('should clean nested arrays with objects', () => {
+        const props: OJson = {
+            items: [
+                {
+                    nested: [
+                        {a: '1', b: undefined as any},
+                        {c: '2', d: undefined as any}
+                    ]
+                }
+            ]
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({
+            items: [
+                {
+                    nested: [
+                        {a: '1'},
+                        {c: '2'}
+                    ]
+                }
+            ]
+        });
+    });
+
+    it('should preserve null values', () => {
+        const props: OJson = {
+            value: null,
+            undefined: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({value: null});
+        expect(cleaned.value).toBe(null);
+    });
+
+    it('should preserve primitives', () => {
+        const props: OJson = {
+            string: 'text',
+            number: 42,
+            boolean: true,
+            undefined: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({
+            string: 'text',
+            number: 42,
+            boolean: true
+        });
+    });
+
+    it('should handle deeply nested structures', () => {
+        const props: OJson = {
+            level1: {
+                level2: {
+                    level3: {
+                        value: 'deep',
+                        undefined: undefined as any
+                    },
+                    undefined: undefined as any
+                }
+            },
+            undefined: undefined as any
+        };
+        const cleaned = cleanUndefined(props);
+        
+        expect(cleaned).toEqual({
+            level1: {
+                level2: {
+                    level3: {
+                        value: 'deep'
+                    }
+                }
+            }
+        });
+    });
+
+    it('should not modify the original object', () => {
+        const props: OJson = {a: '1', b: undefined as any};
+        const cleaned = cleanUndefined(props);
+        
+        expect(props).toEqual({a: '1', b: undefined});
+        expect(cleaned).toEqual({a: '1'});
+        expect(props).not.toBe(cleaned);
+    });
+
+    it('should ensure that "in" operator works correctly after cleaning', () => {
+        const props: OJson = {a: '1', b: undefined as any};
+        const cleaned = cleanUndefined(props);
+        
+        // After cleaning, optional properties should not be in the object
+        expect('b' in cleaned).toBe(false);
+        expect('a' in cleaned).toBe(true);
+        
+        // This is the key behavior: models should not be able to detect
+        // optional properties that were set to undefined
+        if ('b' in cleaned) {
+            // This should not execute
+            throw new Error('Optional property should not be present');
+        }
     });
 });
 

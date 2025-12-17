@@ -1,4 +1,4 @@
-import type { Model, OJson } from '../types';
+import type { Model, OJson, Json } from '../types';
 import type { BaseContext } from '../context';
 
 import {URLSearchParams} from 'url';
@@ -98,6 +98,116 @@ export function wait<T = unknown>(delay: number, value?: T): [Promise<T>, Functi
     return [promise, () => clearTimeout(timer)];
 }
 
+/**
+ * Checks if a value is a primitive JSON value: null, string, number, or boolean.
+ *
+ * @param value - Value to check
+ * @returns True if value is a primitive JSON value
+ */
+export function isPrimitive(value: unknown): value is null | number | string | boolean {
+    return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+/**
+ * Checks if a value is JSON-serializable according to the library Json type.
+ * Detects circular references and ensures nested structures are valid Json.
+ *
+ * @param value - Value to check
+ * @param seen - Internal set to detect circular references
+ */
+export function isJson(value: unknown, seen: Set<unknown> = new Set()): value is Json {
+    if (isPrimitive(value)) {
+        return true;
+    }
+
+    if (Array.isArray(value)) {
+        if (seen.has(value)) {
+            return false;
+        }
+        seen.add(value);
+        return value.every((item) => isJson(item, seen));
+    }
+
+    if (isPlainObject<Record<string, unknown>>(value)) {
+        return isOJson(value, seen);
+    }
+
+    return false;
+}
+
+/**
+ * Checks if a value is a valid OJson object:
+ * - plain object (no arrays, no null, no custom prototypes)
+ * - values are Json or undefined
+ * - no circular references
+ *
+ * @param value - Value to check
+ * @param seen - Internal set to detect circular references
+ */
+export function isOJson(value: unknown, seen: Set<unknown> = new Set()): value is OJson {
+    if (!isPlainObject<Record<string, unknown>>(value)) {
+        return false;
+    }
+
+    if (seen.has(value)) {
+        return false;
+    }
+    seen.add(value);
+
+    for (const v of Object.values(value as Record<string, unknown>)) {
+        if (v === undefined) {
+            continue;
+        }
+        if (!isJson(v, seen)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Removes undefined values from a Json value recursively.
+ * Returns a new Json value with all undefineds removed.
+ *
+ * @param value - Json value to clean
+ * @returns Cleaned Json value without undefineds
+ */
+export function cleanUndefined(value: OJson): OJson;
+export function cleanUndefined(value: Json): Json;
+export function cleanUndefined(value: Json): Json {
+    // Primitives and null are returned as-is
+    if (isPrimitive(value)) {
+        return value;
+    }
+
+    // Arrays – clean each item
+    if (Array.isArray(value)) {
+        return value.map((item) => cleanUndefined(item as Json)) as Json;
+    }
+
+    // Objects (OJson) – remove undefined properties recursively
+    if (!isPlainObject<Record<string, unknown>>(value)) {
+        // Should not happen for Json, but return as-is defensively
+        return value;
+    }
+
+    const cleaned: OJson = {};
+    const record = value as Record<string, unknown>;
+
+    for (const key of Object.keys(record)) {
+        const v = record[key];
+
+        if (v === undefined) {
+            continue;
+        }
+
+        cleaned[key] = cleanUndefined(v as Json);
+    }
+
+    return cleaned;
+}
+
 export function sign(props: OJson, set?: Set<unknown>) {
     const acc = new URLSearchParams();
 
@@ -130,8 +240,6 @@ export function sign(props: OJson, set?: Set<unknown>) {
 
     return acc.toString();
 }
-
-export const isModelUncacheable = (model) => model.length > 2;
 
 export const displayName = (model: Model) => model.displayName;
 

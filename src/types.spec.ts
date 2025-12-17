@@ -122,6 +122,17 @@ describe('Type Tests', () => {
         it('should extract ModelProps correctly', () => {
             // ModelProps - function model with props
             void (null as Expect<Equal<ModelProps<typeof GetTodoModel>, {id: string}>>);
+            
+            // ModelProps - model with optional properties (OJson now allows undefined)
+            interface ModelWithOptional extends OJson {
+                required: string;
+                optional?: string;
+            }
+            function ModelWithOptional(props: ModelWithOptional): string {
+                return props.required;
+            }
+            ModelWithOptional.displayName = 'ModelWithOptional';
+            void (null as Expect<Equal<ModelProps<typeof ModelWithOptional>, ModelWithOptional>>);
             // ModelProps - function model without props (should be OJson or empty object)
             // Note: TypeScript infers empty object {} for models without props parameter
             void (null as ModelProps<typeof GetAllTodosModel>);

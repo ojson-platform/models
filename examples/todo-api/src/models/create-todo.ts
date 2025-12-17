@@ -1,15 +1,14 @@
+import type {OJson} from '@ojson/models';
 import {todoStore} from './store';
 import type {Todo} from './types';
 import {defineModel} from '../model-utils';
 
 /**
  * Props for CreateTodo model.
- * Note: We don't use `extends OJson` here because optional properties
- * (like `description?: string`) have type `string | undefined`, which conflicts
- * with OJson's index signature `[prop: string]: Json` (undefined is not Json).
- * TypeScript will still check structural compatibility with OJson when the model is used.
+ * Now we can use `extends OJson` because OJson allows undefined values
+ * for optional properties.
  */
-export interface CreateTodoProps {
+export interface CreateTodoProps extends OJson {
     title: string;
     description?: string;
 }
@@ -28,7 +27,7 @@ export const CreateTodo = defineModel(
       completed: false,
     };
     
-    // OJson не допускает undefined, поэтому добавляем только если значение есть
+    // Добавляем description только если значение есть (undefined пропускается)
     if ('description' in props && props.description !== undefined) {
       createData.description = props.description;
     }
