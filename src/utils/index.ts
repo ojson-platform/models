@@ -108,6 +108,13 @@ export function sign(props: OJson, set?: Set<unknown>) {
         .forEach((key) => {
             const value = props[key];
 
+            // Skip undefined values to ensure consistent signatures for optional properties
+            // Objects with missing optional properties should have the same signature
+            // as objects with optional properties set to undefined
+            if (value === undefined) {
+                return;
+            }
+
             if (value && typeof value === 'object') {
                 if (set.has(value)) {
                     // skip circular

@@ -1,9 +1,15 @@
-import type {OJson} from '@ojson/models';
 import {todoStore} from './store';
 import type {Todo} from './types';
 import {defineModel} from '../model-utils';
 
-export interface CreateTodoProps extends OJson {
+/**
+ * Props for CreateTodo model.
+ * Note: We don't use `extends OJson` here because optional properties
+ * (like `description?: string`) have type `string | undefined`, which conflicts
+ * with OJson's index signature `[prop: string]: Json` (undefined is not Json).
+ * TypeScript will still check structural compatibility with OJson when the model is used.
+ */
+export interface CreateTodoProps {
     title: string;
     description?: string;
 }
