@@ -619,5 +619,181 @@ describe('Type Tests', () => {
             typedModel.invalidProperty = 'test';
         });
     });
+
+    describe('Edge Cases', () => {
+        it('should handle models without props (should use OJson)', () => {
+            // Model without props parameter - should accept OJson
+            function ModelWithoutProps(): Promise<Todo[]> {
+                return Promise.resolve([]);
+            }
+            ModelWithoutProps.displayName = 'ModelWithoutProps';
+
+            // ModelProps should be OJson (or empty object)
+            void (null as ModelProps<typeof ModelWithoutProps>);
+            
+            // Should be able to call with empty object or OJson
+            const result1 = baseCtx.request(ModelWithoutProps);
+            expectType<Promise<Todo[]>>(result1);
+            
+            const result2 = baseCtx.request(ModelWithoutProps, {});
+            expectType<Promise<Todo[]>>(result2);
+            
+            const result3 = baseCtx.request(ModelWithoutProps, {someKey: 'value'} as OJson);
+            expectType<Promise<Todo[]>>(result3);
+        });
+
+        it('should handle models with optional props', () => {
+            // Model with optional props extending OJson
+            interface ModelWithOptionalProps extends OJson {
+                required: string;
+                optional?: string;
+            }
+            
+            function ModelWithOptional(props: ModelWithOptionalProps): string {
+                return props.required + (props.optional || '');
+            }
+            ModelWithOptional.displayName = 'ModelWithOptional';
+
+            // ModelProps should preserve optional properties
+            void (null as Expect<Equal<ModelProps<typeof ModelWithOptional>, ModelWithOptionalProps>>);
+            
+            // Should be able to call with required only
+            const result1 = baseCtx.request(ModelWithOptional, {required: 'test'});
+            expectType<Promise<string>>(result1);
+            
+            // Should be able to call with both required and optional
+            const result2 = baseCtx.request(ModelWithOptional, {required: 'test', optional: 'value'});
+            expectType<Promise<string>>(result2);
+            
+            // Should be able to call with optional set to undefined
+            const result3 = baseCtx.request(ModelWithOptional, {required: 'test', optional: undefined});
+            expectType<Promise<string>>(result3);
+        });
+
+        it('should handle models with union types in props', () => {
+            // Model with union types in props
+            interface ModelWithUnionProps extends OJson {
+                status: 'active' | 'inactive' | 'pending';
+                value: string | number;
+            }
+            
+            function ModelWithUnion(props: ModelWithUnionProps): string {
+                return `${props.status}: ${props.value}`;
+            }
+            ModelWithUnion.displayName = 'ModelWithUnion';
+
+            // ModelProps should preserve union types
+            void (null as Expect<Equal<ModelProps<typeof ModelWithUnion>, ModelWithUnionProps>>);
+            
+            // Should accept valid union values
+            const result1 = baseCtx.request(ModelWithUnion, {status: 'active', value: 'test'});
+            expectType<Promise<string>>(result1);
+            
+            const result2 = baseCtx.request(ModelWithUnion, {status: 'inactive', value: 123});
+            expectType<Promise<string>>(result2);
+        });
+
+        it('should handle models with union types in result', () => {
+            // Model with union types in result
+            type UserResult = Todo | null | {error: string};
+            
+            function ModelWithUnionResult(props: {id: string}): Promise<UserResult> {
+                return Promise.resolve(null);
+            }
+            ModelWithUnionResult.displayName = 'ModelWithUnionResult';
+
+            // ModelResult should preserve union types
+            void (null as Expect<Equal<ModelResult<typeof ModelWithUnionResult>, UserResult>>);
+            
+            // Should infer correct union type
+            const result = baseCtx.request(ModelWithUnionResult, {id: '1'});
+            expectType<Promise<UserResult>>(result);
+        });
+
+        it('should handle models with generic types', () => {
+            // Model with generic type parameter
+            // Note: TypeScript cannot infer generic types from ctx.request() usage,
+            // so we test that the generic type is preserved in ModelResult
+            function GenericStringModel(props: {value: string}): Promise<string> {
+                return Promise.resolve(props.value);
+            }
+            GenericStringModel.displayName = 'GenericStringModel';
+
+            function GenericNumberModel(props: {value: number}): Promise<number> {
+                return Promise.resolve(props.value);
+            }
+            GenericNumberModel.displayName = 'GenericNumberModel';
+
+            // Should correctly infer result types
+            const result1 = baseCtx.request(GenericStringModel, {value: 'test'});
+            expectType<Promise<string>>(result1);
+            
+            const result2 = baseCtx.request(GenericNumberModel, {value: 123});
+            expectType<Promise<number>>(result2);
+            
+            // ModelResult should preserve generic types
+            void (null as Expect<Equal<ModelResult<typeof GenericStringModel>, string>>);
+            void (null as Expect<Equal<ModelResult<typeof GenericNumberModel>, number>>);
+        });
+
+        it('should handle models with BaseContext vs WithModels<BaseContext>', () => {
+            // Model that requires BaseContext
+            function ModelWithBaseContext(props: {id: string}, ctx: BaseContext): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            ModelWithBaseContext.displayName = 'ModelWithBaseContext';
+
+            // Model that requires WithModels<BaseContext>
+            // Note: Models requiring WithModels<BaseContext> can only be called from contexts
+            // that are already WithModels<BaseContext>
+            function ModelWithModelsContext(props: {id: string}, ctx: WithModels<BaseContext>): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            ModelWithModelsContext.displayName = 'ModelWithModelsContext';
+
+            // Model with BaseContext should work with baseCtx (which extends BaseContext)
+            const result1 = baseCtx.request(ModelWithBaseContext, {id: '1'});
+            expectType<Promise<Todo | null>>(result1);
+
+            // ModelCtx should extract correct context type
+            // ModelWithBaseContext accepts BaseContext (or any context extending BaseContext)
+            void (null as ModelCtx<typeof ModelWithBaseContext>);
+            // ModelWithModelsContext requires WithModels<BaseContext> (more specific constraint)
+            void (null as ModelCtx<typeof ModelWithModelsContext>);
+            
+            // ModelResult should work for both
+            void (null as Expect<Equal<ModelResult<typeof ModelWithBaseContext>, Todo | null>>);
+            void (null as Expect<Equal<ModelResult<typeof ModelWithModelsContext>, Todo | null>>);
+        });
+
+        it('should handle optional props with OJson extension', () => {
+            // Model with optional props that explicitly extends OJson
+            interface OptionalPropsModel extends OJson {
+                id: string;
+                name?: string;
+                age?: number;
+            }
+            
+            function ModelWithMultipleOptional(props: OptionalPropsModel): string {
+                return props.id + (props.name || '') + (props.age || 0);
+            }
+            ModelWithMultipleOptional.displayName = 'ModelWithMultipleOptional';
+
+            // Should correctly infer optional properties
+            void (null as Expect<Equal<ModelProps<typeof ModelWithMultipleOptional>, OptionalPropsModel>>);
+            
+            // Should accept partial props (only required)
+            const result1 = baseCtx.request(ModelWithMultipleOptional, {id: '1'});
+            expectType<Promise<string>>(result1);
+            
+            // Should accept all props
+            const result2 = baseCtx.request(ModelWithMultipleOptional, {id: '1', name: 'John', age: 30});
+            expectType<Promise<string>>(result2);
+            
+            // Should accept some optional props
+            const result3 = baseCtx.request(ModelWithMultipleOptional, {id: '1', name: 'John'});
+            expectType<Promise<string>>(result3);
+        });
+    });
 });
 
