@@ -1,3 +1,3 @@
-export type {Request, WithModels, Registry} from './with-models';
+export type * from './types';
 
 export {Dead, InterruptedError, withModels} from './with-models';
