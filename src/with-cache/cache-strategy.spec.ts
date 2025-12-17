@@ -1,15 +1,14 @@
-import type {WithCacheModel} from './with-cache';
 import type {Key} from '../types';
+import type {CacheConfig, WithCacheModel} from './types';
 
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {Dead, InterruptedError, withModels} from '../with-models';
-import {withCache} from './with-cache';
+import {InterruptedError, withModels} from '../with-models';
 import {compose} from '../utils';
 
 import {StaleWhileRevalidate, CacheFirst, CacheOnly, NetworkOnly} from './cache-strategy';
-import type {CacheConfig} from './cache';
+import {withCache} from './with-cache';
 import {TrackingCacheProvider} from './__tests__/cache-provider';
 
 describe('Strategy.with()', () => {

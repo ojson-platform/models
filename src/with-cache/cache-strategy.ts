@@ -2,11 +2,11 @@
 import type {Model, OJson, Json} from '../types';
 import type {BaseContext} from '../context';
 import type {Request, WithModels} from '../with-models';
+import type {CacheConfig, CacheStrategy, WithCache} from './types';
+import type {Cache} from './cache';
 
 import {get} from 'lodash-es';
 
-import type {CacheConfig, CacheStrategy, WithCache} from './types';
-import type {Cache} from './cache';
 import {isEmptyValue, getProviderName} from './utils';
 
 /**

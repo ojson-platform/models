@@ -1,16 +1,16 @@
 import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
+import type {CacheConfig, CacheProvider, WithCacheModel, WithCache} from './types';
 
 import {merge} from 'lodash-es';
 
-import type {CacheConfig, CacheProvider, WithCacheModel, WithCacheConfig, WithCache} from './types';
 import {Cache} from './cache';
 
 const __CacheDisabled__ = Symbol('CacheDisabled');
 
 /** @internal Wraps `ctx.request` with cache strategy logic. */
 const wrapRequest = (request: WithModels<BaseContext>['request'], cache: Cache) =>
-    async function (this: WithCache<WithModels<BaseContext>>, model: WithCacheModel, props, ...args) {
+    async function (this: WithCache<WithModels<BaseContext>>, model: WithCacheModel, props) {
         const strategy = model.cacheStrategy;
         if (!strategy || this[__CacheDisabled__]) {
             return request.call(this, model, props);
@@ -25,11 +25,11 @@ const wrapRequest = (request: WithModels<BaseContext>['request'], cache: Cache) 
 /** @internal Wraps `ctx.create` so children inherit cache behavior. */
 const wrapCreate = (create: WithModels<BaseContext>['create'], cache: Cache) =>
     function (this: WithCache<WithModels<BaseContext>>, name: string) {
-        return wrapBaseContext(create.call(this, name), cache);
+        return wrapContext(create.call(this, name), cache);
     };
 
 /** @internal Attaches cache state and methods to a `WithModels<BaseContext>`. */
-const wrapBaseContext = (ctx: WithModels<BaseContext>, cache: Cache) => {
+const wrapContext = (ctx: WithModels<BaseContext>, cache: Cache) => {
     let disabled = false;
 
     Object.assign(ctx, {
@@ -83,6 +83,6 @@ export function withCache(
     const cache = new Cache(config, provider, createBaseContext);
 
     return function(ctx: WithModels<BaseContext>) {
-        return wrapBaseContext(ctx, cache);
+        return wrapContext(ctx, cache);
     };
 }

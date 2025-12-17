@@ -1,10 +1,10 @@
 import type {Key, Model, OJson, Json} from '../types';
+import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
+import type {CacheProvider, CacheConfig} from './types';
 
 import {InterruptedError, withModels} from '../with-models';
-import type {BaseContext} from '../context';
 import {sign} from '../utils';
-import type {CacheProvider, CacheConfig} from './types';
 
 /**
  * High-level cache helper that:

@@ -1,10 +1,11 @@
-import type {WithCacheModel} from './with-cache';
+import type {WithCacheModel} from './types';
 
 import {describe, expect, it, vi} from 'vitest';
 
-import {Cache} from './cache';
-import {withModels} from '../with-models';
 import {Context} from '../context';
+import {withModels} from '../with-models';
+
+import {Cache} from './cache';
 import {TrackingCacheProvider} from './__tests__/cache-provider';
 
 describe('Cache', () => {
