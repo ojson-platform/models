@@ -170,12 +170,11 @@ export function isOJson(value: unknown, seen: Set<unknown> = new Set()): value i
  * Removes undefined values from a Json value recursively.
  * Returns a new Json value with all undefineds removed.
  *
+ * @template T - The input type (must extend Json)
  * @param value - Json value to clean
- * @returns Cleaned Json value without undefineds
+ * @returns Cleaned Json value without undefineds (same type as input)
  */
-export function cleanUndefined(value: OJson): OJson;
-export function cleanUndefined(value: Json): Json;
-export function cleanUndefined(value: Json): Json {
+export function cleanUndefined<T extends Json>(value: T): T {
     // Primitives and null are returned as-is
     if (isPrimitive(value)) {
         return value;
@@ -183,7 +182,7 @@ export function cleanUndefined(value: Json): Json {
 
     // Arrays – clean each item
     if (Array.isArray(value)) {
-        return value.map((item) => cleanUndefined(item as Json)) as Json;
+        return value.map((item) => cleanUndefined(item as Json)) as T;
     }
 
     // Objects (OJson) – remove undefined properties recursively
@@ -192,7 +191,7 @@ export function cleanUndefined(value: Json): Json {
         return value;
     }
 
-    const cleaned: OJson = {};
+    const cleaned: Record<string, unknown> = {};
     const record = value as Record<string, unknown>;
 
     for (const key of Object.keys(record)) {
@@ -205,7 +204,7 @@ export function cleanUndefined(value: Json): Json {
         cleaned[key] = cleanUndefined(v as Json);
     }
 
-    return cleaned;
+    return cleaned as T;
 }
 
 export function sign(props: OJson, set?: Set<unknown>) {
