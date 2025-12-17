@@ -8,6 +8,7 @@
 - Models are pure functions (deterministic).
 - Prefer composition over inheritance.
 - **All comments must be in English** (including test comments and inline documentation).
+- **All commit messages must be in English** (including commit titles and descriptions).
 
 ### Import Organization
 
