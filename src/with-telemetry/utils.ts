@@ -2,7 +2,7 @@ import type {Attributes, AttributeValue} from '@opentelemetry/api';
 import type {OJson, Json} from '../types';
 import type {PropsFilter} from './types';
 
-import {isPlainObject} from '../utils';
+import {isOJson} from '../utils';
 import {trace} from '@opentelemetry/api';
 
 /** @internal Model execution info stored in AsyncLocalStorage for parallel/nested calls. */
@@ -32,11 +32,6 @@ export function isAttributeValue(value: unknown): value is AttributeValue {
   }
 
   return false;
-}
-
-/** @internal Checks if value is a plain OJson object. */
-function isOJsonObject(value: unknown): value is OJson {
-  return isPlainObject(value);
 }
 
 /** @internal Extracts a single field from an object based on filter config. */
@@ -89,7 +84,7 @@ export function extractFields(object: OJson, filter: PropsFilter, prefix = ''): 
 
 /** @internal Extracts fields from result value (any Json type), records primitives/arrays directly. */
 export function extractResultFields(value: Json, filter: PropsFilter): Attributes {
-  if (!isOJsonObject(value)) {
+  if (!isOJson(value)) {
     // For non-object values (arrays, primitives, booleans), record the value directly
     if (isAttributeValue(value)) {
       return {value} as Attributes;
