@@ -4,7 +4,7 @@
  * These utilities use TypeScript's type system to verify that types are inferred
  * correctly. They are compile-time only - no runtime behavior.
  * 
- * @see docs/adr/0005-type-testing-utilities.md
+ * @see docs/ADR/0005-type-testing-utilities.md
  */
 
 /**

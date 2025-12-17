@@ -357,5 +357,5 @@ See `src/with-telemetry/with-telemetry.spec.ts` for examples.
 - [withCache](../with-cache/readme.md) - Adds caching layer
 - [withDeadline](../with-deadline/readme.md) - Adds timeout/deadline support
 - [withOverrides](../with-overrides/readme.md) - Model substitution for testing
-- [ADR 0003: AsyncLocalStorage for Telemetry](../../docs/adr/0003-asynclocalstorage-for-telemetry.md) - Architectural decision on using AsyncLocalStorage for model context
+- [ADR 0003: AsyncLocalStorage for Telemetry](../../docs/ADR/0003-asynclocalstorage-for-telemetry.md) - Architectural decision on using AsyncLocalStorage for model context
 

@@ -681,7 +681,7 @@ if (ctx.isAlive()) {
 - **Determinism**: Ensure models are deterministic - same inputs should always produce same outputs.
 - **Error handling**: Models should handle errors gracefully. Use `ctx.fail()` to mark context as failed.
 - **Type safety**: Use explicit type annotations for model props and return types for better type inference.
-- **Request-dependent models**: Models that depend on request data (e.g., Express `Request` parameters) should use the `ctx.set()` pattern. The model should throw an error if called directly, and its value should be set explicitly via `ctx.set()` in middleware. See [ADR 0002](../../docs/adr/0002-ctx-set-pattern.md) for details.
+- **Request-dependent models**: Models that depend on request data (e.g., Express `Request` parameters) should use the `ctx.set()` pattern. The model should throw an error if called directly, and its value should be set explicitly via `ctx.set()` in middleware. See [ADR 0002](../../docs/ADR/0002-ctx-set-pattern.md) for details.
 
 **Example:**
 ```typescript
@@ -708,5 +708,5 @@ const params = await req.ctx.request(RequestParams);
 - [withDeadline](../with-deadline/readme.md) - Timeout/deadline support
 - [withOverrides](../with-overrides/readme.md) - Model substitution for testing
 - [withTelemetry](../with-telemetry/readme.md) - OpenTelemetry tracing integration
-- [ADR 0002](../../docs/adr/0002-ctx-set-pattern.md) - ctx.set() pattern for request-dependent models
+- [ADR 0002](../../docs/ADR/0002-ctx-set-pattern.md) - ctx.set() pattern for request-dependent models
 
