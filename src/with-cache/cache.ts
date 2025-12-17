@@ -4,40 +4,7 @@ import type {WithModels} from '../with-models';
 import {InterruptedError, withModels} from '../with-models';
 import type {BaseContext} from '../context';
 import {sign} from '../utils';
-
-/**
- * Interface for low-level cache storage.
- * Implementations handle reading and writing JSON values by key.
- */
-export type CacheProvider = {
-    displayName?: string;
-
-    /**
-     * Returns cached value for the given key or `undefined` if missing/expired.
-     * 
-     * @param key - Cache key to look up
-     */
-    get(key: Key): Promise<Json | undefined>;
-    
-    /**
-     * Stores value with a time-to-live (TTL) in seconds.
-     * 
-     * @param key - Cache key
-     * @param value - JSON-serializable value to cache
-     * @param ttl - Time to live in seconds
-     */
-    set(key: Key, value: Json, ttl: number): Promise<void>;
-};
-
-/**
- * TTL configuration per cache strategy name.
- */
-export type CacheConfig<Name extends string = 'default'> = {
-    [prop in Name]: {
-        /** Time to live (seconds). */
-        ttl: number;
-    };
-};
+import type {CacheProvider, CacheConfig} from './types';
 
 /**
  * High-level cache helper that:

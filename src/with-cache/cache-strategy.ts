@@ -2,31 +2,12 @@
 import type {Model, OJson, Json} from '../types';
 import type {BaseContext} from '../context';
 import type {Request, WithModels} from '../with-models';
-import type {Cache, CacheConfig, CacheProvider} from './cache';
-import type {WithCache} from './with-cache';
 
 import {get} from 'lodash-es';
-/**
- * Helper function to check if a value is empty (undefined).
- * Used to determine cache misses.
- * 
- * @internal
- */
-const isEmptyValue = (target: any): target is undefined => target === undefined;
 
-/**
- * Gets the name of a cache provider for logging purposes.
- * Attempts to get constructor name, falls back to 'unknown'.
- * 
- * @internal
- */
-const getProviderName = (provider: CacheProvider): string => {
-    if (provider && typeof provider === 'object' && provider.displayName) {
-        return provider.displayName;
-    }
-
-    return 'unknown';
-};
+import type {CacheConfig, CacheStrategy, WithCache} from './types';
+import type {Cache} from './cache';
+import {isEmptyValue, getProviderName} from './utils';
 
 /**
  * Function type that resolves a cache strategy into a request handler.
@@ -40,50 +21,7 @@ type StrategyResolver = {
 };
 
 /**
- * Cache strategy type that defines how models interact with the cache.
- * 
- * A cache strategy:
- * - Has a unique `displayName` for identification
- * - Has a `config` object with TTL settings
- * - Can be configured with custom TTL via `with()` method
- * - Resolves to a request handler function that implements the caching logic
- * 
- * @example
- * ```typescript
- * // Use default strategy
- * MyModel.cacheStrategy = CacheFirst;
- * 
- * // Use strategy with custom TTL
- * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800 });
- * ```
- */
-export type CacheStrategy = StrategyResolver & {
-    /** Unique name for the strategy (e.g., 'cache-first', 'network-only') */
-    displayName: string;
-    /** Configuration object with TTL settings for this strategy */
-    config: CacheConfig;
-    /**
-     * Creates a new strategy instance with custom TTL configuration.
-     * 
-     * The provided config will be automatically applied to this strategy.
-     * 
-     * @param config - TTL configuration object `{ ttl: number }`
-     * @returns New strategy instance with the provided TTL configuration
-     * 
-     * @example
-     * ```typescript
-     * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800 }); // 30 minutes
-     * ```
-     */
-    with(config: CacheConfig[keyof CacheConfig]): CacheStrategy;
-};
-
-/**
  * Factory function that creates a cache strategy.
- * 
- * @param displayName - Unique name for the strategy
- * @param call - The resolver function that implements the strategy logic
- * @returns A cache strategy object with the resolver and metadata
  * 
  * @internal
  */
@@ -105,13 +43,6 @@ const Strategy = (displayName: string, call: StrategyResolver): CacheStrategy =>
 
 /**
  * Extracts the TTL (time-to-live) value for a strategy from the configuration.
- * Looks for strategy-specific TTL first, then falls back to default TTL.
- * 
- * @param strategy - The cache strategy to get TTL for
- * @param config - The cache configuration object
- * @returns TTL value in seconds
- * @throws {Error} If TTL is not configured for the strategy
- * @throws {Error} If TTL is not a positive number
  * 
  * @internal
  */
@@ -315,7 +246,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
             provider: providerName,
         });
 
-        // Background update - cache.update already handles Dead internally
+        // Background update - cache.update already handles InterruptedError internally
         if (this.shouldCache()) {
             cache.update(model, props, ttl).catch(() => {});
             this.event('cache.update', {

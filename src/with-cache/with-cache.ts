@@ -1,73 +1,12 @@
-import type {Model} from '../types';
 import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
-import type {CacheConfig, CacheProvider} from './cache';
-import type {CacheStrategy} from './cache-strategy';
 
 import {merge} from 'lodash-es';
 
+import type {CacheConfig, CacheProvider, WithCacheModel, WithCacheConfig, WithCache} from './types';
 import {Cache} from './cache';
 
 const __CacheDisabled__ = Symbol('CacheDisabled');
-
-/**
- * Extended model type that supports cache strategies.
- * Models can specify a cache strategy to control how their results are cached.
- * 
- * @example
- * ```typescript
- * function MyModel(props: OJson, ctx: BaseContext): OJson {
- *   return { data: 'value' };
- * }
- * MyModel.displayName = 'MyModel';
- * MyModel.cacheStrategy = CacheFirst.with({ ttl: 3600 });
- * ```
- */
-export type WithCacheModel = Model & {
-    /**
-     * Optional cache strategy to use for this model.
-     * If not specified, the model will execute without caching.
-     */
-    cacheStrategy?: CacheStrategy;
-};
-
-/**
- * Helper type that adds cache configuration properties to any model.
- * 
- * Use this to extend your global `Model` type when using `withCache`:
- * 
- * @example
- * ```typescript
- * // globals.d.ts
- * declare global {
- *   import {Model as BaseModel, WithCacheConfig} from '@ojson/models';
- *   type Model = BaseModel & WithCacheConfig;
- * }
- * 
- * // some.model.ts
- * export function GetUser(props: {id: string}): Promise<User> {
- *   // ...
- * }
- * GetUser.displayName = 'GetUser';
- * GetUser.cacheStrategy = CacheFirst.with({ ttl: 3600 }); // TypeScript knows this property exists
- * ```
- */
-export type WithCacheConfig = {
-    /**
-     * Optional cache strategy to use for this model.
-     * If not specified, the model will execute without caching.
-     */
-    cacheStrategy?: CacheStrategy;
-};
-
-/** BaseContext extended with cache controls and strategy support. */
-export type WithCache<T extends WithModels<BaseContext>> = T & {
-    [__CacheDisabled__]: boolean;
-    /** Globally disables caching for this context and all descendants. */
-    disableCache(): void;
-    /** Returns `false` if cache is disabled via `disableCache()`. */
-    shouldCache(): boolean;
-};
 
 /** @internal Wraps `ctx.request` with cache strategy logic. */
 const wrapRequest = (request: WithModels<BaseContext>['request'], cache: Cache) =>

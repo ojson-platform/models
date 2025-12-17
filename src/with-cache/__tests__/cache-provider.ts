@@ -1,5 +1,5 @@
-import type {CacheProvider} from '../cache';
 import type {Key, Json} from '../../types';
+import type {CacheProvider} from '../types';
 
 import {vi} from 'vitest';
 
