@@ -32,6 +32,33 @@ export type ModelWithTelemetry<Props extends OJson, Result extends Json> = Model
 };
 
 /**
+ * Helper type that adds telemetry configuration properties to any model.
+ * 
+ * Use this to extend your global `Model` type when using `withTelemetry`:
+ * 
+ * @example
+ * ```typescript
+ * // globals.d.ts
+ * declare global {
+ *   import {Model as BaseModel, WithTelemetryConfig} from '@ojson/models';
+ *   type Model = BaseModel & WithTelemetryConfig;
+ * }
+ * 
+ * // some.model.ts
+ * export function GetUser(props: {id: string}): Promise<User> {
+ *   // ...
+ * }
+ * GetUser.displayName = 'GetUser';
+ * GetUser.displayProps = '*'; // TypeScript knows this property exists
+ * ```
+ */
+export type WithTelemetryConfig = {
+  displayProps?: PropsFilter;
+  displayResult?: PropsFilter;
+  displayTags?: Attributes;
+};
+
+/**
  * Internal symbols used to attach telemetry internals to the context.
  * They are exported for typing purposes but not re-exported from the package root.
  * Marked as `unique symbol` so they can be used as computed property keys in types.

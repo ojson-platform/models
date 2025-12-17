@@ -1,8 +1,8 @@
 import type {Model, ModelProps, ModelResult, ModelCtx, OJson, Json} from './types';
 import type {BaseContext} from './context';
 import type {WithModels} from './with-models';
-import type {WithTelemetry} from './with-telemetry';
-import type {WithCache} from './with-cache';
+import type {WithTelemetry, WithTelemetryConfig} from './with-telemetry';
+import type {WithCache, WithCacheConfig, CacheStrategy} from './with-cache';
 import type {Equal, Expect} from './__tests__/type-tests-helpers';
 
 import {describe, it} from 'vitest';
@@ -477,6 +477,135 @@ describe('Type Tests', () => {
             const allCtx = wrapAll(new Context('test'));
             expectType<Promise<Todo[]>>(allCtx.request(GetAllTodosModel));
             expectType<Promise<Todo | null>>(allCtx.request(GetTodoModel, {id: '1'}));
+        });
+    });
+
+    describe('WithTelemetryConfig and WithCacheConfig helper types', () => {
+        it('should allow using displayProps when model is typed with WithTelemetryConfig', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            // Type model with WithTelemetryConfig (intersection type, not generic)
+            const typedModel = TestModel as typeof TestModel & WithTelemetryConfig;
+            
+            // Should be able to set displayProps
+            typedModel.displayProps = '*';
+            typedModel.displayResult = {id: true};
+            typedModel.displayTags = {service: 'test'};
+            
+            // Type check that properties exist
+            void (null as typeof typedModel.displayProps);
+            void (null as typeof typedModel.displayResult);
+            void (null as typeof typedModel.displayTags);
+        });
+
+        it('should allow using cacheStrategy when model is typed with WithCacheConfig', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            // Type model with WithCacheConfig (intersection type, not generic)
+            const typedModel = TestModel as typeof TestModel & WithCacheConfig;
+            
+            // Should be able to set cacheStrategy
+            typedModel.cacheStrategy = {} as CacheStrategy;
+            
+            // Type check that property exists
+            void (null as typeof typedModel.cacheStrategy);
+        });
+
+        it('should allow composing WithTelemetryConfig and WithCacheConfig', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            // Compose both configs (intersection types, not generic)
+            type ExtendedModel = Model & WithTelemetryConfig & WithCacheConfig;
+            const typedModel = TestModel as ExtendedModel;
+            
+            // Should have all properties
+            typedModel.displayProps = '*';
+            typedModel.cacheStrategy = {} as CacheStrategy;
+            
+            // Type check that all properties exist
+            void (null as typeof typedModel.displayProps);
+            void (null as typeof typedModel.cacheStrategy);
+        });
+
+        it('should reject invalid displayName type', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as Model;
+            
+            // @ts-expect-error - displayName must be string, not console
+            typedModel.displayName = console;
+        });
+
+        it('should reject invalid displayProps type', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as typeof TestModel & WithTelemetryConfig;
+            
+            // @ts-expect-error - displayProps must be PropsFilter, not number
+            typedModel.displayProps = 123;
+        });
+
+        it('should reject invalid displayResult type', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as typeof TestModel & WithTelemetryConfig;
+            
+            // @ts-expect-error - displayResult must be PropsFilter, not boolean
+            typedModel.displayResult = true;
+        });
+
+        it('should reject invalid displayTags type', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as typeof TestModel & WithTelemetryConfig;
+            
+            // @ts-expect-error - displayTags must be Attributes, not string
+            typedModel.displayTags = 'invalid';
+        });
+
+        it('should reject invalid cacheStrategy type', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as typeof TestModel & WithCacheConfig;
+            
+            // @ts-expect-error - cacheStrategy must be CacheStrategy, not string
+            typedModel.cacheStrategy = 'invalid';
+        });
+
+        it('should reject invalid properties on model', () => {
+            function TestModel(props: {id: string}): Promise<Todo | null> {
+                return Promise.resolve(null);
+            }
+            TestModel.displayName = 'TestModel';
+            
+            const typedModel = TestModel as typeof TestModel & WithTelemetryConfig & WithCacheConfig;
+            
+            // @ts-expect-error - invalidProperty does not exist on Model type
+            typedModel.invalidProperty = 'test';
         });
     });
 });

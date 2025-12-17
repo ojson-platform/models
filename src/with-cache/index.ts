@@ -1,6 +1,6 @@
 export type {CacheConfig, CacheProvider} from './cache';
 export type {CacheStrategy} from './cache-strategy';
-export type {WithCache} from './with-cache';
+export type {WithCache, WithCacheConfig} from './with-cache';
 
 export {Cache} from './cache';
 export {withCache} from './with-cache';

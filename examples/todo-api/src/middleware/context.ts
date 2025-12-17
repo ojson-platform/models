@@ -1,12 +1,12 @@
 import type {Request, Response} from 'express';
-import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type Key} from '@ojson/models';
+import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type Key} from '@ojson/models';
 import {RequestParams, type ExpressRequestParams} from '../models';
 
 /**
  * Тип расширенного контекста после применения всех обёрток
- * Включает withModels, withDeadline, и withTelemetry
+ * Включает withModels, withTelemetry, и withDeadline
  */
-export type RequestContext = WithModels<Context>;
+export type RequestContext = WithTelemetry<WithModels<Context>>;
 
 /**
  * Middleware для создания контекста с models.
@@ -21,11 +21,13 @@ export type RequestContext = WithModels<Context>;
 export function contextMiddleware(req: Request, res: Response, next: () => void) {
   const registry = new Map<Key, Promise<unknown>>();
 
-  req.ctx = compose([
+  const wrap = compose([
     withModels(registry),
     withTelemetry({serviceName: 'todo-api'}),
     withDeadline(req.deadline),
-  ])(new Context(`${req.method.toUpperCase()} ${req.path}`) as RequestContext);
+  ]);
+
+  req.ctx = wrap(new Context(`${req.method.toUpperCase()} ${req.path}`)) as RequestContext;
 
   // Set request-dependent model values
   req.ctx.set(RequestParams, {

@@ -31,6 +31,35 @@ export type WithCacheModel = Model & {
     cacheStrategy?: CacheStrategy;
 };
 
+/**
+ * Helper type that adds cache configuration properties to any model.
+ * 
+ * Use this to extend your global `Model` type when using `withCache`:
+ * 
+ * @example
+ * ```typescript
+ * // globals.d.ts
+ * declare global {
+ *   import {Model as BaseModel, WithCacheConfig} from '@ojson/models';
+ *   type Model = BaseModel & WithCacheConfig;
+ * }
+ * 
+ * // some.model.ts
+ * export function GetUser(props: {id: string}): Promise<User> {
+ *   // ...
+ * }
+ * GetUser.displayName = 'GetUser';
+ * GetUser.cacheStrategy = CacheFirst.with({ ttl: 3600 }); // TypeScript knows this property exists
+ * ```
+ */
+export type WithCacheConfig = {
+    /**
+     * Optional cache strategy to use for this model.
+     * If not specified, the model will execute without caching.
+     */
+    cacheStrategy?: CacheStrategy;
+};
+
 /** BaseContext extended with cache controls and strategy support. */
 export type WithCache<T extends WithModels<BaseContext>> = T & {
     [__CacheDisabled__]: boolean;
