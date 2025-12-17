@@ -14,7 +14,8 @@
   "files": [
     "build",
     "README.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "docs"
   ],
   "scripts": {
     "prebuild": "rm -rf build",
