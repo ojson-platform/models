@@ -89,7 +89,9 @@ The library does **not** automatically call `toJSON` on class instances – the 
 
 ### Registry
 
-The registry is a shared `Map` that stores memoized results across all contexts in the same request lifecycle. This enables memoization to work across nested contexts.
+The registry is a shared storage that implements the `Registry` interface. It stores memoized results across all contexts in the same request lifecycle. This enables memoization to work across nested contexts.
+
+The `Registry` interface requires four methods: `has(key)`, `get(key)`, `set(key, value)`, and `delete(key)`. The standard JavaScript `Map` implements this interface automatically, so you can use `new Map<Key, Promise<unknown>>()` as a registry.
 
 ## Installation
 
@@ -102,11 +104,12 @@ import {Context} from './context';
 
 ### 1. Create a Registry
 
-Create a registry once per request lifecycle:
+Create a registry once per request lifecycle. The registry must implement the `Registry` interface (which `Map` does by default):
 
 ```typescript
 import type {Key} from '@ojson/models';
 
+// Map implements Registry interface automatically
 const registry = new Map<Key, Promise<unknown>>();
 ```
 
@@ -600,7 +603,7 @@ const user = await ctx.request(UserModel, {id: 123});
 Factory function that returns a wrapper to enhance contexts.
 
 **Parameters:**
-- `registry: Map<Key, Promise<unknown>>` - Shared registry for memoization
+- `registry: Registry` - Shared registry for memoization. Must implement `Registry` interface (Map does by default)
 
 **Returns:** Function that wraps a context
 

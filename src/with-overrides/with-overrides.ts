@@ -23,7 +23,7 @@ export type Overrides = Map<Model, Model>;
  */
 const wrapCreate = (create: WithModels<BaseContext>['create'], overrides: Overrides) =>
     function(this: WithModels<BaseContext>, name: string) {
-        return wrapBaseContext(create.call(this, name), overrides);
+        return wrapContext(create.call(this, name), overrides);
     };
 
 /**
@@ -54,7 +54,7 @@ const wrapRequest = (request: WithModels<BaseContext>['request'], overrides: Ove
  * @returns Enhanced context with override-aware `request`
  * @internal
  */
-const wrapBaseContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, overrides: Overrides) => {
+const wrapContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, overrides: Overrides) => {
     Object.assign(ctx, {
         create: wrapCreate(ctx.create, overrides),
         request: wrapRequest(ctx.request, overrides),
@@ -92,7 +92,7 @@ const wrapBaseContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, override
  */
 export function withOverrides(overrides: Overrides) {
     return function<CTX extends WithModels<BaseContext>>(ctx: CTX) {
-        return wrapBaseContext(ctx, overrides);
+        return wrapContext(ctx, overrides);
     };
 }
 

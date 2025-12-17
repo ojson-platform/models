@@ -37,7 +37,39 @@ export class InterruptedError extends Error {
  * Maps cache keys to promises that resolve to model results.
  * Shared across all contexts in the same request lifecycle.
  */
-type Registry = Map<Key, Promise<unknown>>;
+export interface Registry {
+    /**
+     * Checks if a key exists in the registry.
+     * 
+     * @param key - Cache key to check
+     * @returns True if key exists, false otherwise
+     */
+    has(key: Key): boolean;
+    
+    /**
+     * Retrieves a value from the registry by key.
+     * 
+     * @param key - Cache key to look up
+     * @returns Promise for the cached value, or undefined if not found
+     */
+    get(key: Key): Promise<unknown> | undefined;
+    
+    /**
+     * Stores a value in the registry.
+     * 
+     * @param key - Cache key
+     * @param value - Promise resolving to the model result
+     */
+    set(key: Key, value: Promise<unknown>): void;
+    
+    /**
+     * Removes a key from the registry.
+     * Used for cleanup when promises are rejected.
+     * 
+     * @param key - Cache key to remove
+     */
+    delete(key: Key): boolean;
+}
 
 /**
  * Function type for requesting model execution with automatic memoization.
