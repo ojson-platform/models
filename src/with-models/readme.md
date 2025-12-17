@@ -330,8 +330,11 @@ if (ctx.isAlive()) {
 ### Express.js
 
 ```typescript
-import express, {type Request, type Response} from 'express';
-import {Context, withModels, compose, withDeadline, InterruptedError, type WithModels, type Key} from '@ojson/models';
+import type {Request, Response} from 'express';
+import type {WithModels, Key} from '@ojson/models';
+
+import express from 'express';
+import {Context, withModels, compose, withDeadline, InterruptedError} from '@ojson/models';
 import type {OJson} from '@ojson/models';
 
 // Расширяем Express Request

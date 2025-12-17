@@ -195,6 +195,43 @@ Note: `compose` is exported from `src/utils/index.ts` but not from the main pack
 - Prefer composition over inheritance
 - **All comments must be in English** (including test comments and inline documentation)
 
+### Import Organization
+
+Imports must be organized in a specific order:
+
+1. **Type imports first** (all `import type` statements):
+   - External type imports (from `node_modules` or absolute paths)
+   - Parent module type imports (from `../module`)
+   - Local type imports (from `./module`)
+
+2. **Empty line separator**
+
+3. **Runtime imports** (regular `import` statements):
+   - External module imports (from `node_modules` or absolute paths)
+   - **Empty line separator**
+   - Parent module imports (from `../module`)
+   - **Empty line separator**
+   - Local module imports (from `./module`)
+
+**Example:**
+```typescript
+import type {Test1} from 'external-package';
+import type {Test2} from '../parent-module';
+import type {Test3} from './local-module';
+
+import {externalFunction} from 'external-package';
+
+import {parentFunction} from '../parent-module';
+
+import {localFunction} from './local-module';
+```
+
+**Important**: Do not use mixed import syntax like `import {value, type Type}`. Always separate type imports and runtime imports:
+- ✅ `import type {Type} from './module';` followed by `import {value} from './module';`
+- ❌ `import {value, type Type} from './module';`
+
+Within each group (types or runtime), imports are sorted by source location: external → parent → local.
+
 ## Testing Instructions
 
 - Test files use `.spec.ts` extension (excluded from build)
@@ -266,6 +303,7 @@ The `resolve` method is used internally to handle promises. It can be overridden
   - Records model props/result/errors as span attributes and events
   - Marks spans as failed when `ctx.fail()` is called
   - Wraps `ctx.event()` from `withModels` to record events in OpenTelemetry spans
+- **SDK Requirement**: `withTelemetry` requires `NodeSDK` from `@opentelemetry/sdk-node` to be initialized. It automatically checks SDK initialization (via `ensureNodeSDKInitialized()`) and throws a helpful error with setup instructions if not. `NodeSDK` uses `AsyncLocalStorageContextManager` which is necessary for proper context propagation. Using `BasicTracerProvider` with `NoopContextManager` will not work.
 - Models can optionally provide telemetry configuration via `displayProps`, `displayResult`, and `displayTags` properties.
 - Props are recorded before model execution, results after (if not `Dead`).
 - Only object errors get error events (strings and primitives only set status).

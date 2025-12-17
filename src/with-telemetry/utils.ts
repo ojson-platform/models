@@ -3,12 +3,9 @@ import type {OJson, Json} from '../types';
 import type {PropsFilter} from './types';
 
 import {isPlainObject} from '../utils';
+import {trace} from '@opentelemetry/api';
 
-/**
- * @internal
- * Information about the current model being executed, stored in AsyncLocalStorage
- * to support parallel and nested model calls.
- */
+/** @internal Model execution info stored in AsyncLocalStorage for parallel/nested calls. */
 export interface ModelInfo {
   displayProps?: PropsFilter;
   displayResult?: PropsFilter;
@@ -16,17 +13,7 @@ export interface ModelInfo {
   props: OJson;
 }
 
-/**
- * @internal
- * Local check for valid OpenTelemetry attribute values.
- *
- * We intentionally avoid depending on `@opentelemetry/sdk-node` here and instead
- * implement a minimal runtime guard compatible with the AttributeValue type:
- * - string
- * - number
- * - boolean
- * - arrays of the above.
- */
+/** @internal Checks if value is a valid OpenTelemetry attribute (string/number/boolean/array of these). */
 export function isAttributeValue(value: unknown): value is AttributeValue {
   if (value == null) {
     return false;
@@ -47,19 +34,12 @@ export function isAttributeValue(value: unknown): value is AttributeValue {
   return false;
 }
 
-/**
- * @internal
- * Checks if a value is an object (OJson) that can be used with extractFields.
- * Uses isPlainObject to ensure it's a plain object, not a class instance.
- */
+/** @internal Checks if value is a plain OJson object. */
 function isOJsonObject(value: unknown): value is OJson {
   return isPlainObject(value);
 }
 
-/**
- * @internal
- * Extracts a single field from an object based on filter configuration.
- */
+/** @internal Extracts a single field from an object based on filter config. */
 function extractField(
   acc: Attributes,
   field: string,
@@ -86,11 +66,7 @@ function extractField(
   return acc;
 }
 
-/**
- * @internal
- * Extracts fields from an object based on filter configuration.
- * Returns an Attributes object suitable for OpenTelemetry spans.
- */
+/** @internal Extracts fields from an object based on filter config, returns OpenTelemetry Attributes. */
 export function extractFields(object: OJson, filter: PropsFilter, prefix = ''): Attributes {
   prefix = prefix ? prefix + '.' : prefix;
 
@@ -111,11 +87,7 @@ export function extractFields(object: OJson, filter: PropsFilter, prefix = ''): 
   return {};
 }
 
-/**
- * @internal
- * Safely extracts fields from a result value that can be any Json type.
- * For non-object values (arrays, primitives, booleans), records them directly.
- */
+/** @internal Extracts fields from result value (any Json type), records primitives/arrays directly. */
 export function extractResultFields(value: Json, filter: PropsFilter): Attributes {
   if (!isOJsonObject(value)) {
     // For non-object values (arrays, primitives, booleans), record the value directly
@@ -130,10 +102,7 @@ export function extractResultFields(value: Json, filter: PropsFilter): Attribute
   return extractFields(value, filter);
 }
 
-/**
- * @internal
- * Extracts a readable error message from an error object.
- */
+/** @internal Extracts a readable error message from an error object. */
 export function extractMessage(error: unknown): string {
   if (!error) {
     return '';
@@ -150,13 +119,34 @@ export function extractMessage(error: unknown): string {
   return String(error);
 }
 
-/**
- * @internal
- * Extracts stack trace from an error object if available.
- */
+/** @internal Extracts stack trace from an error object if available. */
 export function extractStacktrace(error: unknown): string | undefined {
   if (error && typeof error === 'object' && 'stack' in error) {
     return String((error as any).stack);
+  }
+}
+
+/** @internal Verifies that OpenTelemetry SDK is initialized, throws with setup instructions if not. */
+export function ensureNodeSDKInitialized(): void {
+  try {
+    const provider = trace.getTracerProvider();
+    if (!provider) {
+      throw new Error('Tracer provider is not available');
+    }
+    
+    const tracer = provider.getTracer('with-telemetry-check');
+    if (!tracer) {
+      throw new Error('Tracer is not available');
+    }
+  } catch (error) {
+    throw new Error(
+      'withTelemetry requires NodeSDK from @opentelemetry/sdk-node to be initialized. ' +
+      'Please initialize NodeSDK before using withTelemetry:\n\n' +
+      'import {NodeSDK} from \'@opentelemetry/sdk-node\';\n' +
+      'const sdk = new NodeSDK({serviceName: \'your-service\'});\n' +
+      'sdk.start();\n\n' +
+      'See src/with-telemetry/readme.md for details.'
+    );
   }
 }
 

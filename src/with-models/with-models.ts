@@ -87,7 +87,7 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
  * const result = await ctx.request(MyModel, {id: 123});
  * ```
  */
-export type WithModels<T extends BaseContext> = T & {
+export type WithModels<T extends BaseContext> = {
     [__Registry__]: Registry;
     isAlive(): boolean;
     kill(): typeof Dead;
@@ -115,7 +115,7 @@ export type WithModels<T extends BaseContext> = T & {
      */
     event(name: string, attributes?: Record<string, unknown>): void;
     create(...args: Parameters<T['create']>): WithModels<T>;
-};
+} & T;
 
 /**
  * Executes a model with automatic memoization.

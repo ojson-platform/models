@@ -1,7 +1,8 @@
 import type {Model} from '../types';
 
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, vi, beforeAll, afterAll} from 'vitest';
 import {SpanStatusCode, trace, context as otelContext, type Span} from '@opentelemetry/api';
+import {NodeSDK} from '@opentelemetry/sdk-node';
 
 import {Context} from '../context';
 import {withModels, InterruptedError} from '../with-models';
@@ -11,6 +12,27 @@ import {withTelemetry, getSpan} from './with-telemetry';
 import type {ModelWithTelemetry} from './types';
 
 describe('withTelemetry', () => {
+    // Setup in-memory tracer provider for tests to get real span contexts
+    let sdk: NodeSDK;
+
+    beforeAll(() => {
+        // NodeSDK uses AsyncLocalStorageContextManager by default
+        sdk = new NodeSDK({
+            // No exporters needed for tests - we just need the tracer provider
+        });
+        sdk.start();
+    });
+
+    afterAll(async () => {
+        if (sdk) {
+            try {
+                await sdk.shutdown();
+            } catch (error) {
+                // Ignore shutdown errors (may occur if SDK wasn't fully initialized)
+            }
+        }
+    });
+
     function createContext(serviceName = 'test-service') {
         const registry = new Map();
         const wrap = compose([
@@ -538,6 +560,7 @@ describe('withTelemetry', () => {
         // Create an external parent span and make it active
         const tracer = trace.getTracer('external-service');
         const externalParent = tracer.startSpan('external-parent');
+        const externalCtx = externalParent.spanContext();
         const parentCtx = trace.setSpan(otelContext.active(), externalParent);
 
         let ctxSpanContext;
@@ -547,7 +570,6 @@ describe('withTelemetry', () => {
             ctxSpanContext = span.spanContext();
         });
 
-        const externalCtx = externalParent.spanContext();
         expect(ctxSpanContext.traceId).toBe(externalCtx.traceId);
 
         externalParent.end();
@@ -655,9 +677,13 @@ describe('withTelemetry', () => {
 
         const ctx = wrap(new Context('request'));
 
+        // Capture child spans before making requests
+        const childSpans = captureChildSpans(ctx);
+
         const spans: Span[] = [];
 
         const model = vi.fn(async (_props: any, _modelCtx: any) => {
+            // Use the same context API as the implementation
             const activeSpan = trace.getSpan(otelContext.active());
             if (activeSpan) {
                 spans.push(activeSpan);
@@ -674,10 +700,6 @@ describe('withTelemetry', () => {
         const active = spans[0];
 
         // And this active span should be the same as the model's child span
-        const childSpans = captureChildSpans(ctx);
-
-        await ctx.request(model, {id: 2});
-
         const modelSpan = childSpans.find(s => s.name === 'TestModel');
         expect(modelSpan).toBeDefined();
         expect(modelSpan!.span.spanContext().traceId).toBe(active.spanContext().traceId);

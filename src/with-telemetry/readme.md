@@ -8,6 +8,8 @@ OpenTelemetry tracing integration for model execution and context lifecycle.
 
 This helper enables observability in your application by providing structured tracing data that can be exported to OpenTelemetry-compatible backends (e.g., Jaeger, Zipkin, Prometheus).
 
+**SDK Requirement**: `withTelemetry` requires `NodeSDK` from `@opentelemetry/sdk-node` to be initialized before use. If `NodeSDK` is not properly initialized, `withTelemetry` will automatically detect this and throw a clear error message with setup instructions. This ensures proper context propagation via `AsyncLocalStorageContextManager`. See "Setup OpenTelemetry SDK" below for details.
+
 ### Runtime Compatibility
 
 **Important**: `withTelemetry` uses `AsyncLocalStorage` from `node:async_hooks` to correctly record model attributes on child spans. This means:
@@ -60,11 +62,17 @@ import {withModels} from './with-models';
 import {compose} from './utils';
 ```
 
+**Dependencies**: This helper requires both `@opentelemetry/api` and `@opentelemetry/sdk-node` (both are dependencies). `withTelemetry` automatically verifies that `NodeSDK` is properly initialized when creating contexts and will throw a helpful error with setup instructions if it's not. This ensures proper context propagation via `AsyncLocalStorageContextManager` (see "Setup OpenTelemetry SDK" below).
+
 ## Basic Usage
 
-### 1. Setup OpenTelemetry SDK (Optional but Recommended)
+### 1. Setup OpenTelemetry SDK (Required for Production)
 
-Before using `withTelemetry`, you typically want to configure the OpenTelemetry SDK to export traces:
+**Important**: `withTelemetry` requires a properly configured OpenTelemetry SDK to work correctly. Without it, spans may not be created with valid trace IDs or may not propagate context correctly.
+
+#### Production Setup
+
+For production applications, use `NodeSDK` which includes `AsyncLocalStorageContextManager` by default:
 
 ```typescript
 import {NodeSDK} from '@opentelemetry/sdk-node';
@@ -77,6 +85,37 @@ const sdk = new NodeSDK({
 
 sdk.start();
 ```
+
+#### Testing Setup
+
+For tests, you also need to initialize the SDK to get valid span contexts:
+
+```typescript
+import {NodeSDK} from '@opentelemetry/sdk-node';
+import {beforeAll, afterAll} from 'vitest';
+
+let sdk: NodeSDK;
+
+beforeAll(() => {
+  // NodeSDK uses AsyncLocalStorageContextManager by default
+  sdk = new NodeSDK({
+    // No exporters needed for tests - we just need the tracer provider
+  });
+  sdk.start();
+});
+
+afterAll(async () => {
+  if (sdk) {
+    try {
+      await sdk.shutdown();
+    } catch (error) {
+      // Ignore shutdown errors
+    }
+  }
+});
+```
+
+**Why NodeSDK?** `NodeSDK` uses `AsyncLocalStorageContextManager` which properly propagates spans through `otelContext.with()`. Using `BasicTracerProvider` with `NoopContextManager` (the default) will not work correctly - spans won't be found in active context, and trace IDs won't propagate properly.
 
 ### 2. Compose with withModels
 
@@ -294,12 +333,12 @@ type PropsFilter =
 
 When testing code that uses `withTelemetry`:
 
-- Spans are created automatically but may not be exported unless SDK is configured
-- Use `getSpan(ctx)` to obtain the span associated with a context (intended for tests and debugging only)
-- Use `vi.spyOn(span, 'setAttributes')` and `vi.spyOn(span, 'addEvent')` to verify telemetry calls
-- Test that props, results, and errors are recorded correctly
-- Verify that child contexts create child spans
-- Test interruption-aware behavior (props recorded, results not when `InterruptedError` is thrown)
+- **SDK Initialization**: You must initialize `NodeSDK` in your test setup (see "Setup OpenTelemetry SDK" above). Without it, spans will have invalid trace IDs and context propagation won't work correctly.
+- **Span Access**: Use `getSpan(ctx)` to obtain the span associated with a context (intended for tests and debugging only)
+- **Verification**: Use `vi.spyOn(span, 'setAttributes')` and `vi.spyOn(span, 'addEvent')` to verify telemetry calls
+- **Test Coverage**: Test that props, results, and errors are recorded correctly
+- **Hierarchy**: Verify that child contexts create child spans
+- **Interruption**: Test interruption-aware behavior (props recorded, results not when `InterruptedError` is thrown)
 
 See `src/with-telemetry/with-telemetry.spec.ts` for examples.
 

@@ -19,7 +19,9 @@
   "scripts": {
     "prebuild": "rm -rf build",
     "build": "tspc",
-    "test": "vitest"
+    "test": "npm run test:units && npm run test:types",
+    "test:units": "vitest --run",
+    "test:types": "tspc -p tsconfig.types.json"
   },
   "keywords": [
     "models",
@@ -40,6 +42,8 @@
     "lodash-es": "^4.17.21"
   },
   "devDependencies": {
+    "@opentelemetry/context-async-hooks": "^2.2.0",
+    "@opentelemetry/sdk-trace-base": "^2.2.0",
     "ts-patch": "^3.3.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.3",

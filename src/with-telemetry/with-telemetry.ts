@@ -4,20 +4,17 @@ import type {OJson, Json} from '../types';
 import type {ModelWithTelemetry, TelemetryConfig, WithTelemetry} from './types';
 import type {Attributes, Span} from '@opentelemetry/api';
 
-import {SpanKind, SpanStatusCode, trace, context as otelBaseContext} from '@opentelemetry/api';
+import {SpanKind, SpanStatusCode, trace, context as otelContext} from '@opentelemetry/api';
 import {AsyncLocalStorage} from 'node:async_hooks';
 
-import {extractFields, extractMessage, extractResultFields, extractStacktrace, isAttributeValue, type ModelInfo} from './utils';
+import {extractFields, extractMessage, extractResultFields, extractStacktrace, isAttributeValue, ensureNodeSDKInitialized, type ModelInfo} from './utils';
 import {__ModelStorage__, __Span__} from './types';
 
 const __Handled__ = Symbol('TelErrorHandled');
 
 /**
  * Returns the OpenTelemetry span associated with a telemetry-enabled context, if any.
- *
- * This helper is intended primarily for testing and debugging. It accepts a plain
- * `BaseContext` (or any extended context) and uses structural typing to read the
- * internal span symbol if telemetry is enabled.
+ * Intended for testing and debugging only.
  */
 export function getSpan(ctx: BaseContext | undefined): Span | undefined {
     if (!ctx) {
@@ -27,13 +24,7 @@ export function getSpan(ctx: BaseContext | undefined): Span | undefined {
     return (ctx as any)[__Span__] as Span | undefined;
 }
 
-/**
- * @internal
- * Ensures AsyncLocalStorage for model info exists on the context and returns it.
- * This helper centralizes the invariant that withTelemetry has been applied to
- * the context. If storage is missing, it's a programming error (helper was not
- * applied correctly) and we throw to surface it early.
- */
+/** @internal Returns AsyncLocalStorage for model info, throws if not initialized. */
 function requireModelStorage<CTX extends WithModels<BaseContext>>(ctx: WithTelemetry<CTX>): AsyncLocalStorage<ModelInfo> {
     const storage = ctx[__ModelStorage__];
     if (!storage) {
@@ -42,11 +33,8 @@ function requireModelStorage<CTX extends WithModels<BaseContext>>(ctx: WithTelem
     return storage;
 }
 
-/**
- * @internal
- * Wraps the context's request method to store model information in AsyncLocalStorage.
- * The actual telemetry recording happens in wrapCall on the child context's span.
- */
+
+/** @internal Stores model info in AsyncLocalStorage for access in wrapCall. */
 const wrapRequest = (request: WithModels<BaseContext>['request']) =>
     async function<Props extends OJson, Result extends Json>(
         this: WithTelemetry<WithModels<BaseContext>>,
@@ -66,10 +54,7 @@ const wrapRequest = (request: WithModels<BaseContext>['request']) =>
         );
     };
 
-/**
- * @internal
- * Wraps the context's event method (from withModels) to record events in the OpenTelemetry span.
- */
+/** @internal Records events in the OpenTelemetry span. */
 const wrapEvent = (event: WithModels<BaseContext>['event'], span: Span) =>
     function(this: WithTelemetry<WithModels<BaseContext>>, name: string, attributes?: Record<string, unknown>) {
         // Call the original event method from withModels (no-op by default)
@@ -90,11 +75,7 @@ const wrapEvent = (event: WithModels<BaseContext>['event'], span: Span) =>
         }
     };
 
-/**
- * @internal
- * Wraps the context's call method to record model telemetry on the child context's span.
- * This is where props, results, and errors are recorded - on the model's span, not the parent's.
- */
+/** @internal Records model telemetry (props, results, errors) on the child context's span. */
 const wrapCall = <CTX extends WithModels<BaseContext>>(call: CTX['call']) =>
     async function(this: WithTelemetry<CTX>, name: string, action: Function) {
         // Get model information from AsyncLocalStorage (set by wrapRequest)
@@ -112,7 +93,7 @@ const wrapCall = <CTX extends WithModels<BaseContext>>(call: CTX['call']) =>
             // - any nested spans created by instrumentation become children of the model span.
             const childSpan = child[__Span__];
 
-            return otelBaseContext.with(trace.setSpan(otelBaseContext.active(), childSpan), async () => {
+            return otelContext.with(trace.setSpan(otelContext.active(), childSpan), async () => {
                 if (modelInfo) {
                     // Record props on the child span (model's span)
                     if (modelInfo.displayProps) {
@@ -152,28 +133,17 @@ const wrapCall = <CTX extends WithModels<BaseContext>>(call: CTX['call']) =>
         });
     };
 
-/**
- * @internal
- * Wraps the context's create method to ensure child contexts also have telemetry.
- *
- * Typing is generic so that `ctx.create()` returns the same telemetry-augmented
- * type as the parent, which keeps type inference consistent in user code and tests.
- */
+/** @internal Ensures child contexts inherit telemetry. */
 const wrapCreate = <CTX extends WithModels<BaseContext>>(
     create: CTX['create'],
     config: TelemetryConfig,
 ) =>
     function (this: WithTelemetry<CTX>, name: string): WithTelemetry<CTX> {
         const child = create.call(this, name) as CTX;
-        return wrapBaseContext(child, config);
+        return wrapContext(child, config);
     };
 
-/**
- * @internal
- * Wraps the context's end method to end the OpenTelemetry span.
- * Only ends the span if it's still recording (not already ended via fail).
- * Also checks if context has an error - if so, don't end (fail should handle it).
- */
+/** @internal Ends the span if still recording. */
 const wrapEnd = (end: WithModels<BaseContext>['end']) =>
     function(this: WithTelemetry<WithModels<BaseContext>>) {
         end.call(this);
@@ -186,10 +156,7 @@ const wrapEnd = (end: WithModels<BaseContext>['end']) =>
         }
     };
 
-/**
- * @internal
- * Wraps the context's fail method to mark the span as failed and record error details.
- */
+/** @internal Marks span as failed and records error details. */
 const wrapFail = (fail: WithModels<BaseContext>['fail']) =>
     function(this: WithTelemetry<WithModels<BaseContext>>, error: unknown) {
         fail.call(this, error);
@@ -215,12 +182,16 @@ const wrapFail = (fail: WithModels<BaseContext>['fail']) =>
         }
     };
 
-const wrapBaseContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, config: TelemetryConfig): WithTelemetry<CTX> => {
+const wrapContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, config: TelemetryConfig): WithTelemetry<CTX> => {
+    // Ensure proper SDK is initialized before creating spans
+    ensureNodeSDKInitialized();
+    
     const tracer = trace.getTracer(config.serviceName);
-    const activeCtx = otelBaseContext.active();
+    const activeCtx = otelContext.active();
     const parentSpan = getSpan(ctx.parent);
-    // If there is a parent span from our own context hierarchy, use it;
-    // otherwise, fall back to whatever span is currently active in OpenTelemetry
+    
+    // If we have a parent span from our hierarchy, use it (ignore active OTEL context)
+    // Otherwise, try to use active OTEL context (which may contain a span set via otelContext.with)
     const baseCtx = parentSpan ? trace.setSpan(activeCtx, parentSpan) : activeCtx;
     const span = tracer.startSpan(ctx.name, {kind: SpanKind.INTERNAL}, baseCtx);
 
@@ -243,36 +214,14 @@ const wrapBaseContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, config: 
 };
 
 /**
- * Factory function that enhances a `WithModels` context with OpenTelemetry tracing.
- *
- * It automatically creates spans for contexts and tracks model execution:
- * - Creates a span for each context (named after `ctx.name`)
- * - Sets up parent-child span relationships based on context hierarchy
- * - Records model props/result/errors as span attributes and events
- * - Marks spans as failed when `ctx.fail()` is called
- *
- * Models can optionally provide telemetry configuration via:
- * - `displayProps` - Which props fields to include in span attributes
- * - `displayResult` - Which result fields to include in span events
- * - `displayTags` - Additional static attributes to add to spans
- *
- * This helper is typically composed after `withModels` using `compose`.
- *
+ * Enhances a `WithModels` context with OpenTelemetry tracing.
+ * 
+ * Creates spans for contexts, tracks model execution, and records props/result/errors.
+ * Models can provide telemetry config via `displayProps`, `displayResult`, `displayTags`.
+ * 
  * @param config - Telemetry configuration with service name
- * @returns Wrapper function that adds tracing capabilities to a `WithModels` context
- *
- * @throws {Error} If `serviceName` is empty or not a string
- *
- * @example
- * ```typescript
- * const wrap = compose([
- *   withModels(registry),
- *   withTelemetry({serviceName: 'my-api'}),
- * ]);
- *
- * const ctx = wrap(new BaseContext('request'));
- * await ctx.request(MyModel); // Creates span for context and model execution
- * ```
+ * @returns Wrapper function that adds tracing capabilities
+ * @throws {Error} If `serviceName` is empty or NodeSDK is not initialized
  */
 export function withTelemetry(config: TelemetryConfig) {
     // Validate configuration
@@ -281,6 +230,6 @@ export function withTelemetry(config: TelemetryConfig) {
     }
 
     return function<CTX extends WithModels<BaseContext>>(ctx: CTX) {
-        return wrapBaseContext(ctx, config);
+        return wrapContext(ctx, config);
     };
 }
