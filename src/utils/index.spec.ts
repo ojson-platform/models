@@ -1,5 +1,6 @@
-import {describe, it, expect} from 'vitest';
 import type {OJson} from '../types';
+
+import {describe, it, expect} from 'vitest';
 
 import {sign, cleanUndefined} from './index';
 
