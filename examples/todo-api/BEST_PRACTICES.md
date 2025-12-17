@@ -237,9 +237,10 @@ todo-api/
 │   │   ├── context.ts         # Context middleware (compose)
 │   │   ├── finish.ts          # Finish middleware
 │   │   └── index.ts           # Экспорт
+│   ├── data/
+│   │   └── store.ts           # In-memory хранилище данных
 │   ├── models/
 │   │   ├── types.ts           # TypeScript типы
-│   │   ├── store.ts           # Хранилище данных
 │   │   └── index.ts           # Модели
 │   └── server.ts              # Express сервер
 ├── package.json

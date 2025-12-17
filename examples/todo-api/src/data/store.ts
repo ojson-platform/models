@@ -1,4 +1,4 @@
-import type {Todo} from './types';
+import type {Todo} from '../models/types';
 
 // In-memory хранилище для todo-lists
 class TodoStore {

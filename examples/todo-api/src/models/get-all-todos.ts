@@ -1,6 +1,7 @@
-import {todoStore} from './store';
 import type {Todo} from './types';
+
 import {defineModel} from '../model-utils';
+import {todoStore} from '../data/store';
 
 /**
  * Model for retrieving all todos

@@ -1,6 +1,7 @@
 import type {OJson} from '@ojson/models';
-import {todoStore} from './store';
+
 import {defineModel} from '../model-utils';
+import {todoStore} from '../data/store';
 
 export interface DeleteTodoProps extends OJson {
   id: string;

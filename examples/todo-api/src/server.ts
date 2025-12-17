@@ -7,7 +7,6 @@ import {
   UpdateTodo,
   DeleteTodo,
   RequestParams,
-  type ExpressRequestParams,
 } from './models';
 import {
   deadlineMiddleware,

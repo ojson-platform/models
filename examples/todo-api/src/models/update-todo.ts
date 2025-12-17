@@ -1,7 +1,9 @@
 import type {OJson} from '@ojson/models';
-import {todoStore} from './store';
+
 import type {Todo} from './types';
+
 import {defineModel} from '../model-utils';
+import {todoStore} from '../data/store';
 
 export interface UpdateTodoProps extends OJson {
   id: string;
