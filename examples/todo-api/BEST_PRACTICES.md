@@ -11,6 +11,8 @@
 **Решение**: Использовать `compose` для применения обёрток напрямую в middleware.
 
 ```typescript
+import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type Key, type Registry} from '@ojson/models';
+
 // ❌ Плохо - класс с приватным enhanced
 class RequestContext extends Context {
   private _enhanced?: WithModels<RequestContext>;
@@ -19,7 +21,7 @@ class RequestContext extends Context {
 
 // ✅ Хорошо - compose в middleware
 export function contextMiddleware(req: Request, res: Response, next: () => void) {
-  const registry = new Map<Key, Promise<unknown>>();
+  const registry: Registry = new Map<Key, Promise<unknown>>();
   
   req.ctx = compose([
     withModels(registry),
@@ -239,7 +241,6 @@ todo-api/
 │   │   ├── types.ts           # TypeScript типы
 │   │   ├── store.ts           # Хранилище данных
 │   │   └── index.ts           # Модели
-│   ├── type-tests.ts          # Тесты на выведение типов
 │   └── server.ts              # Express сервер
 ├── package.json
 ├── tsconfig.json

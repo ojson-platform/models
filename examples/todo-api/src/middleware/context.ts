@@ -1,5 +1,5 @@
 import type {Request, Response} from 'express';
-import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type Key} from '@ojson/models';
+import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type Key, type Registry} from '@ojson/models';
 import {RequestParams, type ExpressRequestParams} from '../models';
 
 /**
@@ -19,7 +19,8 @@ export type RequestContext = WithTelemetry<WithModels<Context>>;
  * Также устанавливает значения для request-dependent моделей через ctx.set()
  */
 export function contextMiddleware(req: Request, res: Response, next: () => void) {
-  const registry = new Map<Key, Promise<unknown>>();
+  // Registry для мемоизации результатов моделей в рамках одного запроса
+  const registry: Registry = new Map<Key, Promise<unknown>>();
 
   const wrap = compose([
     withModels(registry),
