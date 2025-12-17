@@ -9,7 +9,7 @@ adds a simple deadline mechanism for async model execution:
 
 - It intercepts `ctx.resolve` and races it against a timeout.
 - If the timeout fires first, it calls `ctx.kill()`.
-- Any in-flight `ctx.request` will then observe `Dead` according to
+- Any in-flight `ctx.request` will then throw `InterruptedError` according to
   `withModels` semantics.
 
 This is useful when you want to **bound the total time** a request can
@@ -73,15 +73,20 @@ const ctx = wrap(new Context('request'));
 ### 2. Use `ctx.request` as usual
 
 ```ts
+import {InterruptedError} from '@ojson/models';
+
 async function SlowModel(props, ctx) {
   await new Promise(resolve => setTimeout(resolve, 10000)); // 10s
   return {ok: true};
 }
 SlowModel.displayName = 'SlowModel';
 
-const result = await ctx.request(SlowModel, {});
-if (result === Dead) {
-  // Execution was cancelled by the deadline
+try {
+  const result = await ctx.request(SlowModel, {});
+} catch (error) {
+  if (error instanceof InterruptedError) {
+    // Execution was cancelled by the deadline
+  }
 }
 ```
 
@@ -151,7 +156,7 @@ Key scenarios for `withDeadline`:
   - the context stays alive.
 - Model finishes **after** the deadline:
   - `ctx.kill()` is called;
-  - `ctx.request` returns `Dead`;
+  - `ctx.request` throws `InterruptedError`;
   - `ctx.isAlive()` becomes `false`.
 - Manual `ctx.kill()` call:
   - the timer should be cleared;

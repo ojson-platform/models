@@ -656,12 +656,18 @@ function GetUser(props: {id: string}) {
 
 Interrupts all future model executions on this context.
 
-**Returns:** `typeof Dead`
+**Returns:** `symbol` (internal symbol, not part of public API)
 
 **Example:**
 ```typescript
 ctx.kill();
-const result = await ctx.request(MyModel); // Returns Dead
+try {
+  const result = await ctx.request(MyModel);
+} catch (error) {
+  if (error instanceof InterruptedError) {
+    // Execution was interrupted
+  }
+}
 ```
 
 ### `ctx.isAlive()`

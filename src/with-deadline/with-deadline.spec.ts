@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {withModels, Dead, InterruptedError} from '../with-models';
+import {withModels, InterruptedError} from '../with-models';
 import {withDeadline} from './with-deadline';
 
 describe('withDeadline', () => {

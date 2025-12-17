@@ -3,7 +3,7 @@ import type { Model } from '../types';
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
-import {withModels, Dead, InterruptedError} from './with-models';
+import {withModels, InterruptedError} from './with-models';
 
 describe('withModels', () => {
     it('should work', async () => {

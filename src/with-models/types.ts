@@ -81,7 +81,7 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
  * 
  * @property {Registry} [__Registry__] - Internal registry for memoized model results
  * @property {function(): boolean} isAlive - Checks if context is still alive (not killed)
- * @property {function(): typeof Dead} kill - Kills the context, interrupting all future requests
+ * @property {function(): symbol} kill - Kills the context, interrupting all future requests
  * @property {Request} request - Method to request model execution with memoization
  * @property {function(Promise<Result>): Promise<Result>} resolve - Resolves promises with interrupt checking
  * @property {function(string): WithModels<T>} create - Creates a child context with shared registry
@@ -98,7 +98,7 @@ export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
 export type WithModels<T extends BaseContext> = {
     [__Registry__]: Registry;
     isAlive(): boolean;
-    kill(): typeof import('./with-models').Dead;
+    kill(): symbol;
     request<M extends Model<any, any, T>>(
         model: M,
         props?: ModelProps<M>

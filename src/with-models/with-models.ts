@@ -8,8 +8,10 @@ import {__Registry__} from './types';
 /**
  * Symbol used internally to indicate that execution was interrupted.
  * This should not be returned to users - instead, an InterruptedError is thrown.
+ * 
+ * @internal
  */
-export const Dead = Symbol('Dead');
+const Dead = Symbol('Dead');
 
 /**
  * Error thrown when a model execution is interrupted (context was killed).
