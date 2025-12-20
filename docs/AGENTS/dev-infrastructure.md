@@ -219,7 +219,13 @@ This document describes the development infrastructure setup for the project, in
 ## Security
 
 - **SonarCloud**: Security vulnerability scanning
-- **Dependencies**: Manual updates (Dependabot not configured yet)
+- **Dependabot**: Automatic dependency updates
+  - Config: `.github/dependabot.yml`
+  - Schedule: Weekly (Monday, 09:00)
+  - Updates: Minor and patch versions only
+  - Major versions: Require manual review
+  - Grouping: Production and development dependencies separately
+  - PR limit: 10 open PRs
 
 ## Release Process
 

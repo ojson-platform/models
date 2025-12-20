@@ -137,16 +137,26 @@
 - LCOV отчет загружается в SonarCloud через GitHub Actions
 - SonarCloud анализирует coverage, качество кода, безопасность и дублирование
 
-#### 6.3. Dependabot / Renovate
+#### 6.3. Dependabot / Renovate ✅
 
 **Цель:** Автоматическое обновление зависимостей
 
 **Задачи:**
-- [ ] Настроить Dependabot через `.github/dependabot.yml`:
+- [x] Настроить Dependabot через `.github/dependabot.yml`:
   - Проверка npm зависимостей
   - Создание PR для обновлений
-  - Группировка обновлений (опционально)
-- [ ] Или использовать Renovate (более гибкий)
+  - Группировка обновлений по типу (production/development)
+  - Еженедельное расписание (понедельник, 09:00)
+  - Игнорирование major версий (требуют ручного ревью)
+  - Лимит открытых PR: 10
+  - Labels: dependencies, dependabot
+  - Commit message prefix: chore
+
+**Реализовано:**
+- Dependabot настроен для npm зависимостей
+- Автоматические обновления minor и patch версий
+- Группировка обновлений для production и development зависимостей
+- Major версии требуют ручного ревью
 
 #### 6.4. Release notes автоматизация (вариант B: release-please)
 
@@ -210,7 +220,7 @@
 9. Избавиться от всех ворнингов в линтере
 
 ### Фаза 3 (Желательно):
-10. Dependabot
+10. Dependabot ✅
 11. Type checking в CI
 
 ### Фаза 4 (Опционально):
