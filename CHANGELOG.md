@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/ojson-platform/models/compare/models-v1.0.0...models-v1.1.0) (2025-12-20)
+
+
+### Features
+
+* **utils:** add has() utility for property and type checking ([966bc43](https://github.com/ojson-platform/models/commit/966bc43899a38c3277028920dd755e8eb1fad478))
+
+
+### Bug Fixes
+
+* **ci:** enable publish workflow trigger for release-please releases ([5528230](https://github.com/ojson-platform/models/commit/5528230948d26d03b7494a3d7e6dd1d36aa05bfc))
+* **ci:** fix integration tests not found in examples workflow ([febefe8](https://github.com/ojson-platform/models/commit/febefe8f7f6e87bcd9292a2c49a08f92d4e305be))
+* **coverage:** limit coverage calculation to src/ directory only ([a89cac1](https://github.com/ojson-platform/models/commit/a89cac17c291d91666535ec4df685582111b80a8))
+* **lint:** disable no-explicit-any for spec files ([40aaa30](https://github.com/ojson-platform/models/commit/40aaa306f9dc74525aa0402a9f295a97a188838f))
+* **lint:** replace any with proper types to eliminate warnings ([fdac41f](https://github.com/ojson-platform/models/commit/fdac41f670312b54817aafa7ac35a50bde0ccc23))
+
 ## [1.0.0](https://github.com/ojson-platform/models/compare/models-v0.0.1...models-v1.0.0) (2025-12-20)
 
 
