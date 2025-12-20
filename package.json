@@ -46,6 +46,14 @@
   ],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ojson-platform/models.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ojson-platform/models/issues"
+  },
+  "homepage": "https://github.com/ojson-platform/models#readme",
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/sdk-node": "^0.202.0",
