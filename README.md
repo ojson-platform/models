@@ -38,18 +38,21 @@ import express from 'express';
 import {Context, withModels} from '@ojson/models';
 
 const app = express();
-const registry = new Map(); // Create once, reuse per request
 
 // Define models
-function RequestParams(props, ctx) {
-  return {
-    userId: ctx.req.query.userId,
-    token: ctx.req.headers.authorization
-  };
+interface RequestParamsProps {
+  userId: string;
+  token: string;
+}
+
+function RequestParams(): RequestParamsProps {
+  // This model should be set via ctx.set() in middleware
+  // See middleware example below
+  throw new Error('RequestParams must be set via ctx.set()');
 }
 RequestParams.displayName = 'RequestParams';
 
-async function AuthModel(props, ctx) {
+async function AuthModel(props: {token: string}) {
   const response = await fetch(`/api/auth/verify`, {
     headers: {Authorization: props.token}
   });
@@ -57,13 +60,24 @@ async function AuthModel(props, ctx) {
 }
 AuthModel.displayName = 'AuthModel';
 
+// Middleware to create context per request
+app.use((req, res, next) => {
+  const registry = new Map(); // Create once per request
+  const ctx = withModels(registry)(new Context(`${req.method} ${req.path}`));
+  
+  // Set request-dependent model values
+  ctx.set(RequestParams, {
+    userId: req.query.userId as string,
+    token: req.headers.authorization || ''
+  });
+  
+  req.ctx = ctx;
+  next();
+});
+
 // Use in route handler
 app.get('/api/user', async (req, res) => {
-  const baseCtx = new Context('http-get');
-  baseCtx.req = req;
-  baseCtx.res = res;
-  
-  const ctx = withModels(registry)(baseCtx);
+  const ctx = req.ctx;
   
   try {
     // RequestParams is computed once, even if called multiple times
