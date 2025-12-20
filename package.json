@@ -25,6 +25,7 @@
     "test:units": "vitest --run",
     "test:units:fast": "vitest --run --exclude 'examples/**'",
     "test:coverage": "vitest --run --coverage",
+    "test:coverage:fast": "vitest --run --coverage --exclude 'examples/**'",
     "test:types": "tspc -p tsconfig.types.json",
     "test:integration": "vitest --run examples/**/*.spec.ts",
     "lint": "eslint src --ext .ts",

@@ -10,7 +10,8 @@
 - ✅ Скрипты lint/format в package.json
 - ✅ GitHub Actions для тестов и линтера
 - ✅ Отдельный workflow для examples (интеграционный слой)
-- ❌ Нет pre-commit хуков
+- ✅ Pre-commit хуки (Husky + lint-staged)
+- ✅ Coverage отчеты через SonarCloud
 - ❌ Нет workflow для публикации npm пакета
 - ❌ Нет release-please / автоматизации релизов
 
@@ -119,16 +120,22 @@
 - [x] Настроить ESLint для работы с Prettier (использовать `eslint-config-prettier`)
 - [x] Интегрировать с pre-commit hook через lint-staged (добавлено в `.lintstagedrc.json`)
 
-#### 6.2. Coverage отчеты
+#### 6.2. Coverage отчеты ✅
 
 **Цель:** Отслеживание покрытия кода тестами
 
 **Задачи:**
-- [ ] Настроить vitest для генерации coverage
-- [ ] Добавить `@vitest/coverage-v8` или `@vitest/coverage-istanbul`
+- [x] Настроить vitest для генерации coverage (`vitest.config.ts`)
+- [x] Добавить `@vitest/coverage-v8` (совместимая версия с vitest 3.2.3)
+- [x] Добавить скрипт `test:coverage` в package.json
+- [x] Публиковать coverage в GitHub Actions (через SonarCloud)
+- [x] Использовать SonarCloud для анализа coverage и качества кода
 - [ ] Настроить пороги покрытия (⏸️ TODO: добавить пороги в будущем, когда покрытие будет достаточным)
-- [ ] Публиковать coverage в GitHub Actions
-- [ ] Использовать `codecov` или `coveralls` (опционально)
+
+**Реализовано:**
+- Coverage отчеты генерируются в форматах: text, json, html, lcov
+- LCOV отчет загружается в SonarCloud через GitHub Actions
+- SonarCloud анализирует coverage, качество кода, безопасность и дублирование
 
 #### 6.3. Dependabot / Renovate
 
@@ -208,19 +215,18 @@
 5. Pre-commit хуки (Husky + lint-staged) - ESLint, Prettier, полные тесты (без examples) ✅
 6. GitHub Actions: Публикация npm
 7. GitHub Actions: Проверка примеров (интеграционные тесты) ✅
-8. Избавиться от всех ворнингов в линтере
+8. Coverage отчеты через SonarCloud ✅
+9. Избавиться от всех ворнингов в линтере
 
 ### Фаза 3 (Желательно):
-9. Coverage отчеты (без порогов пока)
 10. Dependabot
 11. Type checking в CI
-12. Избавиться от всех ворнингов в линтере
 
 ### Фаза 4 (Опционально):
-11. Release notes автоматизация (release-please)
-12. Security scanning
-13. Bundle size monitoring
-14. Coverage пороги (TODO: добавить когда покрытие будет достаточным)
+13. Release notes автоматизация (release-please)
+14. Security scanning
+15. Bundle size monitoring
+16. Coverage пороги (TODO: добавить когда покрытие будет достаточным)
 
 ## Решения
 
@@ -234,6 +240,7 @@
 ## Следующие шаги
 
 1. ✅ Настроить pre-commit хуки (Husky + lint-staged)
-2. Избавиться от всех ворнингов в линтере
-3. Добавить workflow публикации npm и интегрировать release-please
-4. Постепенно добавлять Coverage, Dependabot, security-сканы и т.д.
+2. ✅ Настроить Coverage отчеты через SonarCloud
+3. Избавиться от всех ворнингов в линтере
+4. Добавить workflow публикации npm и интегрировать release-please
+5. Постепенно добавлять Dependabot, security-сканы и т.д.

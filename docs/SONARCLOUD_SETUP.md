@@ -53,6 +53,16 @@ sonar.projectKey=your-org_ojson-models
 
 ### Генерация coverage отчетов
 
+Для SonarCloud используется скрипт, который исключает интеграционные тесты из examples:
+
+```bash
+npm run test:coverage:fast
+```
+
+Этот скрипт исключает `examples/**` из тестов, так как они требуют дополнительных зависимостей (например, express), которые установлены только в `examples/todo-api/package.json`.
+
+Для полного coverage (включая examples) можно использовать:
+
 ```bash
 npm run test:coverage
 ```
@@ -73,6 +83,8 @@ npm run test:coverage
 3. **Генерируется LCOV отчет** (`coverage/lcov.info`)
 4. **SonarCloud Action** загружает отчет и анализирует код
 5. **Результаты появляются** в SonarCloud и в комментариях к PR
+
+**Важно:** В workflow используется конкретная версия тега (`@2.1.0`) вместо `@master` для безопасности. SonarCloud рекомендует использовать полный SHA коммита или версию тега, чтобы избежать неожиданных изменений в action.
 
 ## Что анализирует SonarCloud
 
