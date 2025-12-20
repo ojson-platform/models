@@ -140,6 +140,28 @@ describe('Strategy.with()', () => {
     );
   });
 
+  it('should throw error when TTL is not a number', async () => {
+    // Create context with invalid TTL type (string instead of number)
+    const wrap = compose([
+      withModels(new Map()),
+      withCache(
+        {default: {ttl: 'invalid' as unknown as number}} as CacheConfig,
+        cache,
+        (name: string) => withModels(new Map())(new Context(name)),
+      ),
+    ]);
+    const ctx = wrap(new Context('request'));
+
+    const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+    model.displayName = 'model';
+    // Use strategy without .with() to rely on config TTL
+    model.cacheStrategy = CacheFirst;
+
+    await expect(ctx.request(model, {id: 1})).rejects.toThrow(
+      'TTL for "cache-first" strategy is not configured',
+    );
+  });
+
   it('should throw error when TTL is not positive', async () => {
     const wrap = compose([
       withModels(new Map()),

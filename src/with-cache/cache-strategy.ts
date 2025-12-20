@@ -164,7 +164,10 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
 
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
-        cache.set(key, value, ttl).catch(() => {});
+        // Ignore cache set errors - background operation should not block response
+        cache.set(key, value, ttl).catch(() => {
+          // Cache set failures are non-critical for cache-first strategy
+        });
 
         this.event('cache.update', {
           strategy: 'cache-first',
@@ -244,7 +247,10 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
 
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
-        cache.set(key, value, ttl).catch(() => {});
+        // Ignore cache set errors - background operation should not block response
+        cache.set(key, value, ttl).catch(() => {
+          // Cache set failures are non-critical for stale-while-revalidate strategy
+        });
 
         this.event('cache.update', {
           strategy: 'stale-while-revalidate',
@@ -263,7 +269,10 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
 
     // Background update - cache.update already handles InterruptedError internally
     if (this.shouldCache()) {
-      cache.update(model, props, ttl).catch(() => {});
+      // Ignore cache update errors - background operation should not block response
+      cache.update(model, props, ttl).catch(() => {
+        // Cache update failures are non-critical for stale-while-revalidate strategy
+      });
       this.event('cache.update', {
         strategy: 'stale-while-revalidate',
         provider: providerName,
