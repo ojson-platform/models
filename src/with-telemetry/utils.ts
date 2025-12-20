@@ -1,9 +1,10 @@
-import type {Attributes, AttributeValue} from '@opentelemetry/api';
 import type {OJson, Json} from '../types';
 import type {PropsFilter} from './types';
+import type {Attributes, AttributeValue} from '@opentelemetry/api';
+
+import {trace} from '@opentelemetry/api';
 
 import {isOJson} from '../utils';
-import {trace} from '@opentelemetry/api';
 
 /** @internal Model execution info stored in AsyncLocalStorage for parallel/nested calls. */
 export interface ModelInfo {
@@ -40,7 +41,7 @@ function extractField(
   field: string,
   value: boolean | string | ((key: string, value: unknown) => unknown),
   object: OJson,
-  prefix: string
+  prefix: string,
 ): Attributes {
   let extractedValue: unknown;
 
@@ -128,7 +129,7 @@ export function ensureNodeSDKInitialized(): void {
     if (!provider) {
       throw new Error('Tracer provider is not available');
     }
-    
+
     const tracer = provider.getTracer('with-telemetry-check');
     if (!tracer) {
       throw new Error('Tracer is not available');
@@ -136,13 +137,11 @@ export function ensureNodeSDKInitialized(): void {
   } catch (error) {
     throw new Error(
       'withTelemetry requires NodeSDK from @opentelemetry/sdk-node to be initialized. ' +
-      'Please initialize NodeSDK before using withTelemetry:\n\n' +
-      'import {NodeSDK} from \'@opentelemetry/sdk-node\';\n' +
-      'const sdk = new NodeSDK({serviceName: \'your-service\'});\n' +
-      'sdk.start();\n\n' +
-      'See src/with-telemetry/readme.md for details.'
+        'Please initialize NodeSDK before using withTelemetry:\n\n' +
+        "import {NodeSDK} from '@opentelemetry/sdk-node';\n" +
+        "const sdk = new NodeSDK({serviceName: 'your-service'});\n" +
+        'sdk.start();\n\n' +
+        'See src/with-telemetry/readme.md for details.',
     );
   }
 }
-
-

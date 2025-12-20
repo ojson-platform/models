@@ -1,6 +1,6 @@
+import type {BaseContext} from '../context';
 import type {Model} from '../types';
 import type {WithModels} from '../with-models';
-import type {BaseContext} from '../context';
 
 /**
  * Map of model overrides.
@@ -22,9 +22,9 @@ export type Overrides = Map<Model, Model>;
  * @internal
  */
 const wrapCreate = (create: WithModels<BaseContext>['create'], overrides: Overrides) =>
-    function(this: WithModels<BaseContext>, name: string) {
-        return wrapContext(create.call(this, name), overrides);
-    };
+  function (this: WithModels<BaseContext>, name: string) {
+    return wrapContext(create.call(this, name), overrides);
+  };
 
 /**
  * Wraps the context's `request` method to apply model overrides.
@@ -38,11 +38,11 @@ const wrapCreate = (create: WithModels<BaseContext>['create'], overrides: Overri
  * @internal
  */
 const wrapRequest = (request: WithModels<BaseContext>['request'], overrides: Overrides) =>
-    function(this: WithModels<BaseContext>, model: Model, props: unknown) {
-        const overridden = getOverridden(model, overrides);
+  function (this: WithModels<BaseContext>, model: Model, props: unknown) {
+    const overridden = getOverridden(model, overrides);
 
-        return request.call(this, overridden || model, props as any);
-    };
+    return request.call(this, overridden || model, props as any);
+  };
 
 /**
  * Wraps a `WithModels` context so that:
@@ -55,12 +55,12 @@ const wrapRequest = (request: WithModels<BaseContext>['request'], overrides: Ove
  * @internal
  */
 const wrapContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, overrides: Overrides) => {
-    Object.assign(ctx, {
-        create: wrapCreate(ctx.create, overrides),
-        request: wrapRequest(ctx.request, overrides),
-    });
+  Object.assign(ctx, {
+    create: wrapCreate(ctx.create, overrides),
+    request: wrapRequest(ctx.request, overrides),
+  });
 
-    return ctx;
+  return ctx;
 };
 
 /**
@@ -91,9 +91,9 @@ const wrapContext = <CTX extends WithModels<BaseContext>>(ctx: CTX, overrides: O
  * ```
  */
 export function withOverrides(overrides: Overrides) {
-    return function<CTX extends WithModels<BaseContext>>(ctx: CTX) {
-        return wrapContext(ctx, overrides);
-    };
+  return function <CTX extends WithModels<BaseContext>>(ctx: CTX) {
+    return wrapContext(ctx, overrides);
+  };
 }
 
 /**
@@ -110,17 +110,17 @@ export function withOverrides(overrides: Overrides) {
  * @internal
  */
 function getOverridden(model: Model, overrides: Overrides) {
-    let overridden = overrides.get(model);
+  let overridden = overrides.get(model);
 
-    while (overridden) {
-        const next = overrides.get(overridden);
+  while (overridden) {
+    const next = overrides.get(overridden);
 
-        if (!next) {
-            return overridden;
-        }
-
-        overridden = next;
+    if (!next) {
+      return overridden;
     }
 
-    return undefined;
+    overridden = next;
+  }
+
+  return undefined;
 }

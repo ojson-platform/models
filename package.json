@@ -18,11 +18,18 @@
     "docs"
   ],
   "scripts": {
+    "prepare": "husky install",
     "prebuild": "rm -rf build",
     "build": "tspc",
     "test": "npm run test:units && npm run test:types",
     "test:units": "vitest --run",
-    "test:types": "tspc -p tsconfig.types.json"
+    "test:units:fast": "vitest --run --exclude 'examples/**'",
+    "test:types": "tspc -p tsconfig.types.json",
+    "test:integration": "vitest --run examples/**/*.spec.ts",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
   },
   "keywords": [
     "models",
@@ -43,8 +50,17 @@
     "lodash-es": "^4.17.21"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@opentelemetry/context-async-hooks": "^2.2.0",
     "@opentelemetry/sdk-trace-base": "^2.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
     "ts-patch": "^3.3.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.3",

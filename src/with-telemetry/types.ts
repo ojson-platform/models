@@ -1,10 +1,9 @@
+import type {BaseContext} from '../context';
+import type {Model, OJson, Json} from '../types';
+import type {WithModels} from '../with-models';
+import type {ModelInfo} from './utils';
 import type {Attributes, Span} from '@opentelemetry/api';
 import type {AsyncLocalStorage} from 'node:async_hooks';
-
-import type {BaseContext} from '../context';
-import type {WithModels} from '../with-models';
-import type {Model, OJson, Json} from '../types';
-import type {ModelInfo} from './utils';
 
 /**
  * Filter configuration for extracting fields from props or results.
@@ -15,7 +14,9 @@ import type {ModelInfo} from './utils';
  *   - `string` - Include field with a different name (mapping)
  *   - `function` - Custom extractor function `(key, value) => attributeValue`
  */
-export type PropsFilter = '*' | Record<string, boolean | string | ((key: string, value: unknown) => unknown)>;
+export type PropsFilter =
+  | '*'
+  | Record<string, boolean | string | ((key: string, value: unknown) => unknown)>;
 
 /**
  * Extended model type that supports telemetry configuration.
@@ -33,9 +34,9 @@ export type ModelWithTelemetry<Props extends OJson, Result extends Json> = Model
 
 /**
  * Helper type that adds telemetry configuration properties to any model.
- * 
+ *
  * Use this to extend your global `Model` type when using `withTelemetry`:
- * 
+ *
  * @example
  * ```typescript
  * // globals.d.ts
@@ -43,7 +44,7 @@ export type ModelWithTelemetry<Props extends OJson, Result extends Json> = Model
  *   import {Model as BaseModel, WithTelemetryConfig} from '@ojson/models';
  *   type Model = BaseModel & WithTelemetryConfig;
  * }
- * 
+ *
  * // some.model.ts
  * export function GetUser(props: {id: string}): Promise<User> {
  *   // ...
@@ -108,5 +109,3 @@ export type WithTelemetry<T extends WithModels<BaseContext>> = T & {
 export type TelemetryConfig = {
   serviceName: string;
 };
-
-

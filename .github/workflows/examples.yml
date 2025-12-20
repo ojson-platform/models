@@ -1,0 +1,39 @@
+name: Examples
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  examples:
+    name: Build and test examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build main package
+        run: npm run build
+
+      - name: Install example dependencies
+        working-directory: examples/todo-api
+        run: npm ci
+
+      - name: Build example
+        working-directory: examples/todo-api
+        run: npm run build
+
+      - name: Run integration tests
+        run: npm run test:integration
+
