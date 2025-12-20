@@ -99,8 +99,10 @@ export type WithModels<T extends BaseContext> = {
   [__Registry__]: Registry;
   isAlive(): boolean;
   kill(): symbol;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic Model type parameters
   request<M extends Model<any, any, T>>(model: M, props?: ModelProps<M>): Promise<ModelResult<M>>;
   resolve<Result extends Json>(value: Promise<Result>): Promise<Result>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic Model type parameters
   set<M extends Model<any, any, T>>(model: M, value: ModelResult<M>, props?: ModelProps<M>): void;
   event(name: string, attributes?: Record<string, unknown>): void;
   create(...args: Parameters<T['create']>): WithModels<T>;

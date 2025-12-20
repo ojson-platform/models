@@ -41,6 +41,7 @@ const wrapRequest = (request: WithModels<BaseContext>['request'], overrides: Ove
   function (this: WithModels<BaseContext>, model: Model, props: unknown) {
     const overridden = getOverridden(model, overrides);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for props type assertion when using overrides
     return request.call(this, overridden || model, props as any);
   };
 

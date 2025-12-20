@@ -6,7 +6,7 @@ import type {CacheProvider} from './types';
  *
  * @internal
  */
-export const isEmptyValue = (target: any): target is undefined => target === undefined;
+export const isEmptyValue = (target: unknown): target is undefined => target === undefined;
 
 /**
  * Gets the name of a cache provider for logging purposes.

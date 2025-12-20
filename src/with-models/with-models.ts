@@ -109,6 +109,7 @@ export class InterruptedError extends Error {
  *
  * @internal
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic Model type parameters
 async function request<M extends Model<any, any, any>>(
   this: WithModels<BaseContext>,
   model: M,
@@ -218,6 +219,7 @@ const wrapCreate = <CTX extends BaseContext>(create: CTX['create']) =>
  *
  * @internal
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic Model type parameters
 function set<M extends Model<any, any, any>>(
   this: WithModels<BaseContext>,
   model: M,

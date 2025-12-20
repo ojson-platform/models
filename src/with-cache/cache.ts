@@ -110,8 +110,8 @@ export class Cache implements CacheProvider {
 
         // Disable cache on the context if it has cache capabilities
         // This prevents recursive caching when the factory applies withCache
-        if (typeof (ctx as any).disableCache === 'function') {
-          (ctx as any).disableCache();
+        if ('disableCache' in ctx && typeof ctx.disableCache === 'function') {
+          ctx.disableCache();
         }
 
         try {

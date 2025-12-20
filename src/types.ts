@@ -42,12 +42,16 @@ export type Model<
  * Helper type to extract Props from a Model.
  * Works with both function models and object models with action property.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction in conditional types
 export type ModelProps<M> = M extends (...args: any[]) => any
-  ? M extends (props: infer Props, ...args: any[]) => any
+  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
+    M extends (props: infer Props, ...args: any[]) => any
     ? Props
     : never
-  : M extends {action: (...args: any[]) => any}
-    ? M['action'] extends (props: infer Props, ...args: any[]) => any
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
+    M extends {action: (...args: any[]) => any}
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
+      M['action'] extends (props: infer Props, ...args: any[]) => any
       ? Props
       : never
     : never;
@@ -57,16 +61,20 @@ export type ModelProps<M> = M extends (...args: any[]) => any
  * Works with both function models and object models with action property.
  * Extracts the return type, handling Promise and Generator.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction in conditional types
 export type ModelResult<M> = M extends (...args: any[]) => infer R
   ? R extends Promise<infer T>
     ? T
-    : R extends Generator<infer T, any, any>
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for Generator type parameters
+      R extends Generator<infer T, any, any>
       ? T
       : R
-  : M extends {action: (...args: any[]) => infer R}
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
+    M extends {action: (...args: any[]) => infer R}
     ? R extends Promise<infer T>
       ? T
-      : R extends Generator<infer T, any, any>
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for Generator type parameters
+        R extends Generator<infer T, any, any>
         ? T
         : R
     : never;
@@ -75,8 +83,10 @@ export type ModelResult<M> = M extends (...args: any[]) => infer R
  * Helper type to extract Ctx from a Model.
  * Works with both function models and object models with action property.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction in conditional types
 export type ModelCtx<M> = M extends (props: any, ctx: infer Ctx, ...args: any[]) => any
   ? Ctx
-  : M extends {action: (props: any, ctx: infer Ctx, ...args: any[]) => any}
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
+    M extends {action: (props: any, ctx: infer Ctx, ...args: any[]) => any}
     ? Ctx
     : never;

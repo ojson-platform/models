@@ -8,16 +8,19 @@ import {URLSearchParams} from 'url';
  * Accepts any context type (including extended contexts) and returns a context type.
  * Uses structural typing to allow wrappers with compatible signatures.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic wrapper function type
 type WrapperFunc = (ctx: any) => any;
 
 /**
  * Extracts the argument type of a wrapper function.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
 type WrapperInput<W> = W extends (ctx: infer Input) => any ? Input : never;
 
 /**
  * Extracts the return type of a wrapper function.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type extraction
 type WrapperOutput<W> = W extends (...args: any[]) => infer Output ? Output : never;
 
 /**
@@ -247,11 +250,14 @@ export function sign(props: OJson, set?: Set<unknown>) {
 
 export const displayName = (model: Model) => model.displayName;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type guard to accept any value
 export const isGenerator = <Result>(target: any): target is Generator<Result> =>
   String(target) === '[object Generator]';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type guard to accept any value
 export const isPromise = <Result>(target: any): target is Promise<Result> =>
   String(target) === '[object Promise]';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type guard to accept any value
 export const isPlainObject = <Result>(target: any): target is Result =>
   String(target) === '[object Object]';

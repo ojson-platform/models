@@ -108,8 +108,8 @@ export function extractMessage(error: unknown): string {
     return error;
   }
 
-  if (typeof error === 'object' && 'message' in error) {
-    return String((error as any).message);
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as {message: unknown}).message);
   }
 
   return String(error);
@@ -117,8 +117,8 @@ export function extractMessage(error: unknown): string {
 
 /** @internal Extracts stack trace from an error object if available. */
 export function extractStacktrace(error: unknown): string | undefined {
-  if (error && typeof error === 'object' && 'stack' in error) {
-    return String((error as any).stack);
+  if (error && typeof error === 'object' && error !== null && 'stack' in error) {
+    return String((error as {stack: unknown}).stack);
   }
 }
 

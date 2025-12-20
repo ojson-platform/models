@@ -30,7 +30,10 @@ export function getSpan(ctx: BaseContext | undefined): Span | undefined {
     return undefined;
   }
 
-  return (ctx as any)[__Span__] as Span | undefined;
+  if (__Span__ in ctx) {
+    return ctx[__Span__] as Span | undefined;
+  }
+  return undefined;
 }
 
 /** @internal Returns AsyncLocalStorage for model info, throws if not initialized. */
@@ -164,7 +167,8 @@ const wrapEnd = (end: WithModels<BaseContext>['end']) =>
     const span = this[__Span__];
     if (span.isRecording()) {
       // Use endTime if available (from Context class), otherwise use current time
-      const endTime = (this as any).endTime ?? Date.now();
+      const endTime =
+        'endTime' in this && typeof this.endTime === 'number' ? this.endTime : Date.now();
       span.end(endTime);
     }
   };
@@ -190,7 +194,8 @@ const wrapFail = (fail: WithModels<BaseContext>['fail']) =>
         message: extractMessage(error),
       });
       // Use endTime if available (from Context class), otherwise use current time
-      const endTime = (this as any).endTime ?? Date.now();
+      const endTime =
+        'endTime' in this && typeof this.endTime === 'number' ? this.endTime : Date.now();
       span.end(endTime);
     }
   };

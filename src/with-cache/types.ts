@@ -73,6 +73,7 @@ export type CacheStrategy = {
    * ```
    */
   with(config: CacheConfig[keyof CacheConfig]): CacheStrategy;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for generic cache strategy function signature
 } & ((config: CacheConfig, cache: any, request: any) => any);
 
 /**
