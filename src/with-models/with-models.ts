@@ -63,9 +63,7 @@ async function processGenerator<Result>(
       return Dead;
     }
 
-    ({value, done} = error
-      ? call.throw(error)
-      : call.next(value));
+    ({value, done} = error ? call.throw(error) : call.next(value));
 
     if (done && states.length) {
       [call, done] = [states.pop()!, false];
