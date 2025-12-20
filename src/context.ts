@@ -9,7 +9,7 @@ export interface BaseContext {
   readonly parent: BaseContext | undefined;
   create(name: string): BaseContext;
   end(): void;
-  fail(error?: Error | unknown): void;
+  fail(error?: unknown): void;
   call(name: string, action: Function): Promise<unknown>;
 }
 
@@ -62,7 +62,7 @@ export class Context implements BaseContext {
     this._endTime = Date.now();
   }
 
-  fail(error?: Error | unknown) {
+  fail(error?: unknown) {
     this._endTime = Date.now();
     this._error = error;
   }

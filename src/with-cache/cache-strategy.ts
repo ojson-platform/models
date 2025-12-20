@@ -15,9 +15,7 @@ import {isEmptyValue, getProviderName} from './utils';
  *
  * @internal
  */
-type StrategyResolver = {
-  (config: CacheConfig, cache: Cache, request: Request): Request;
-};
+type StrategyResolver = (config: CacheConfig, cache: Cache, request: Request) => Request;
 
 /**
  * Factory function that creates a cache strategy.
@@ -49,7 +47,7 @@ const getTTL = (strategy: CacheStrategy, config: CacheConfig) => {
   const ttl = get(config, `${strategy.displayName}.ttl`, get(config, `default.ttl`));
 
   if (typeof ttl !== 'number') {
-    throw new Error(`TTL for "${strategy.displayName}" strategy is not configured`);
+    throw new TypeError(`TTL for "${strategy.displayName}" strategy is not configured`);
   }
 
   if (!Number.isFinite(ttl) || ttl <= 0) {

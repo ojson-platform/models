@@ -69,9 +69,10 @@ export interface Registry {
  * }
  * ```
  */
-export type Request<Props extends OJson = OJson, Result extends Json = Json> = {
-  (model: Model<Props, Result>, props?: Props): Promise<Result>;
-};
+export type Request<Props extends OJson = OJson, Result extends Json = Json> = (
+  model: Model<Props, Result>,
+  props?: Props,
+) => Promise<Result>;
 
 /**
  * Extended context type that includes model request capabilities.

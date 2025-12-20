@@ -130,9 +130,10 @@ async function request<M extends Model<any, any, any>>(
   // Clean undefined values from props to ensure models receive "clean" data
   // as if it were serialized and deserialized. This prevents checks like
   // `if ('optionalProp' in props)` from working incorrectly.
-  const cleanedProps = cleanUndefined(props) as Props;
+  // Props extends OJson, so cleanUndefined returns Props
+  const cleanedProps = cleanUndefined(props);
 
-  const key = `${displayName};${sign(cleanedProps as OJson)}` as Key;
+  const key = `${displayName};${sign(cleanedProps)}` as Key;
 
   if (this[__Registry__].has(key)) {
     const cached = await this[__Registry__].get(key)!;
@@ -232,7 +233,8 @@ function set<M extends Model<any, any, any>>(
 
   const {displayName} = model;
   // Clean undefined values from props to ensure consistent memoization keys
-  const modelProps = cleanUndefined((props ?? {}) as OJson) as OJson;
+  // props ?? {} is OJson, and cleanUndefined preserves the type
+  const modelProps = cleanUndefined((props ?? {}) as OJson);
   const key = `${displayName};${sign(modelProps)}` as Key;
 
   if (this[__Registry__].has(key)) {

@@ -1,7 +1,7 @@
 import type {BaseContext} from '../context';
 import type {Json, Model, OJson} from '../types';
 
-import {URLSearchParams} from 'url';
+import {URLSearchParams} from 'node:url';
 
 /**
  * A wrapper function that transforms a context type.
@@ -162,7 +162,8 @@ export function isOJson(value: unknown, seen: Set<unknown> = new Set()): value i
   }
   seen.add(value);
 
-  for (const v of Object.values(value as Record<string, unknown>)) {
+  // value is already narrowed to Record<string, unknown> by isPlainObject check above
+  for (const v of Object.values(value)) {
     if (v === undefined) {
       continue;
     }
@@ -190,7 +191,8 @@ export function cleanUndefined<T extends Json>(value: T): T {
 
   // Arrays – clean each item
   if (Array.isArray(value)) {
-    return value.map(item => cleanUndefined(item as Json)) as T;
+    // T extends Json, so array items are already Json
+    return value.map(item => cleanUndefined(item)) as T;
   }
 
   // Objects (OJson) – remove undefined properties recursively

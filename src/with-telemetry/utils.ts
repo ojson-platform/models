@@ -90,7 +90,15 @@ export function extractResultFields(value: Json, filter: PropsFilter): Attribute
     if (isAttributeValue(value)) {
       return {value} as Attributes;
     }
-    // If value is not a valid attribute value, convert to string
+    // If value is not a valid attribute value, convert to string safely
+    // For objects, use JSON.stringify to avoid [object Object]
+    if (typeof value === 'object' && value !== null) {
+      try {
+        return {value: JSON.stringify(value)} as Attributes;
+      } catch {
+        return {value: String(value)} as Attributes;
+      }
+    }
     return {value: String(value)} as Attributes;
   }
 
@@ -109,7 +117,32 @@ export function extractMessage(error: unknown): string {
   }
 
   if (has(error, 'message')) {
-    return String((error as {message: unknown}).message);
+    const message = (error as {message: unknown}).message;
+    // Ensure message is converted to string safely
+    if (typeof message === 'string') {
+      return message;
+    }
+    if (message === null || message === undefined) {
+      return String(message);
+    }
+    // For objects, use JSON.stringify to avoid [object Object]
+    if (typeof message === 'object') {
+      try {
+        return JSON.stringify(message);
+      } catch {
+        return String(message);
+      }
+    }
+    return String(message);
+  }
+
+  // For error objects, try to stringify to avoid [object Object]
+  if (typeof error === 'object') {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
   }
 
   return String(error);
@@ -118,7 +151,15 @@ export function extractMessage(error: unknown): string {
 /** @internal Extracts stack trace from an error object if available. */
 export function extractStacktrace(error: unknown): string | undefined {
   if (has(error, 'stack')) {
-    return String((error as {stack: unknown}).stack);
+    const stack = (error as {stack: unknown}).stack;
+    // Stack should already be a string, but ensure safe conversion
+    if (typeof stack === 'string') {
+      return stack;
+    }
+    if (stack === null || stack === undefined) {
+      return undefined;
+    }
+    return String(stack);
   }
 }
 

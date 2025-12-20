@@ -276,7 +276,7 @@ describe('withTelemetry', () => {
 
     expect(setStatusSpy).toHaveBeenCalledWith({
       code: SpanStatusCode.ERROR,
-      message: String(error),
+      message: JSON.stringify(error),
     });
   });
 
