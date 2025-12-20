@@ -33,6 +33,67 @@ describe('withTelemetry', () => {
     }
   });
 
+  describe('ensureNodeSDKInitialized', () => {
+    it('should throw error when SDK is not initialized', () => {
+      // Mock trace.getTracerProvider to return null
+      vi.spyOn(trace, 'getTracerProvider').mockReturnValue(null as any);
+
+      try {
+        const registry = new Map();
+        const wrap = compose([withModels(registry), withTelemetry({serviceName: 'test'})]);
+        wrap(new Context('test'));
+        expect.fail('Expected error was not thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('withTelemetry requires NodeSDK');
+        expect(error.message).toContain('NodeSDK');
+      } finally {
+        // Restore original implementation
+        vi.spyOn(trace, 'getTracerProvider').mockRestore();
+      }
+    });
+
+    it('should throw error when tracer is not available', () => {
+      // Mock trace.getTracerProvider to return provider without tracer
+      const mockProvider = {
+        getTracer: () => null,
+      };
+      vi.spyOn(trace, 'getTracerProvider').mockReturnValue(mockProvider as any);
+
+      try {
+        const registry = new Map();
+        const wrap = compose([withModels(registry), withTelemetry({serviceName: 'test'})]);
+        wrap(new Context('test'));
+        expect.fail('Expected error was not thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('withTelemetry requires NodeSDK');
+        expect(error.message).toContain('NodeSDK');
+      } finally {
+        // Restore original implementation
+        vi.spyOn(trace, 'getTracerProvider').mockRestore();
+      }
+    });
+
+    it('should throw error when getTracerProvider throws', () => {
+      // Mock trace.getTracerProvider to throw
+      vi.spyOn(trace, 'getTracerProvider').mockImplementation(() => {
+        throw new Error('Provider error');
+      });
+
+      try {
+        const registry = new Map();
+        const wrap = compose([withModels(registry), withTelemetry({serviceName: 'test'})]);
+        wrap(new Context('test'));
+        expect.fail('Expected error was not thrown');
+      } catch (error: any) {
+        expect(error.message).toContain('withTelemetry requires NodeSDK');
+        expect(error.message).toContain('NodeSDK');
+      } finally {
+        // Restore original implementation
+        vi.spyOn(trace, 'getTracerProvider').mockRestore();
+      }
+    });
+  });
+
   function createContext(serviceName = 'test-service') {
     const registry = new Map();
     const wrap = compose([withModels(registry), withTelemetry({serviceName})]);
@@ -877,5 +938,310 @@ describe('withTelemetry', () => {
     expect(actualStatus).toBeDefined();
     expect(actualStatus?.code).toBe(SpanStatusCode.ERROR);
     expect(actualStatus?.message).toBe('test error');
+  });
+
+  describe('extractMessage edge cases', () => {
+    it('should handle null error', () => {
+      const ctx = createContext();
+      const error = null;
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle undefined error', () => {
+      const ctx = createContext();
+      const error = undefined;
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error with object message', () => {
+      const ctx = createContext();
+      const error = {message: {code: 500, detail: 'test'}};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error with null message', () => {
+      const ctx = createContext();
+      const error = {message: null};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error with number message', () => {
+      const ctx = createContext();
+      const error = {message: 500};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error object without message', () => {
+      const ctx = createContext();
+      const error = {code: 500};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle circular reference in error object', () => {
+      const ctx = createContext();
+      const error: any = {code: 500};
+      error.self = error; // Create circular reference
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle primitive error values', () => {
+      const ctx = createContext();
+      ctx.fail(42);
+      ctx.fail(true);
+      ctx.fail('string error');
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+  });
+
+  describe('extractStacktrace edge cases', () => {
+    it('should handle error with string stack', () => {
+      const ctx = createContext();
+      const error = new Error('test');
+      error.stack = 'custom stack trace';
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error with null stack', () => {
+      const ctx = createContext();
+      const error: any = {stack: null};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle error with number stack', () => {
+      const ctx = createContext();
+      const error: any = {stack: 123};
+      ctx.fail(error);
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+  });
+
+  describe('extractResultFields edge cases', () => {
+    it('should handle array result with filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => [1, 2, 3]) as unknown as ModelWithTelemetry;
+      model.displayName = 'array-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle primitive result with filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => 'string result') as unknown as ModelWithTelemetry;
+      model.displayName = 'string-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle number result with filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => 42) as unknown as ModelWithTelemetry;
+      model.displayName = 'number-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle boolean result with filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => true) as unknown as ModelWithTelemetry;
+      model.displayName = 'boolean-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle null result with filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => null) as unknown as ModelWithTelemetry;
+      model.displayName = 'null-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle object result that cannot be stringified', async () => {
+      const ctx = createContext();
+      // Create object with circular reference
+      const circular: any = {value: 'test'};
+      circular.self = circular;
+      const model = vi.fn(() => circular) as unknown as ModelWithTelemetry;
+      model.displayName = 'circular-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+  });
+
+  describe('extractFields with object filter', () => {
+    it('should extract fields using object filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => ({
+        id: 1,
+        name: 'test',
+        secret: 'hidden',
+      })) as unknown as ModelWithTelemetry;
+      model.displayName = 'filtered-model';
+      model.displayProps = {id: true, name: 'displayName'};
+
+      await ctx.request(model, {id: 1, name: 'test', secret: 'hidden'});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should extract fields using function filter', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => ({id: 1, name: 'test'})) as unknown as ModelWithTelemetry;
+      model.displayName = 'function-filter-model';
+      model.displayProps = {
+        id: (key: string, value: unknown) => `id-${value}`,
+        name: true,
+      };
+
+      await ctx.request(model, {id: 1, name: 'test'});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle filter with false values', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => ({id: 1, name: 'test'})) as unknown as ModelWithTelemetry;
+      model.displayName = 'false-filter-model';
+      model.displayProps = {id: true, name: false as any};
+
+      await ctx.request(model, {id: 1, name: 'test'});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+  });
+
+  describe('extractResultFields with non-OJson values', () => {
+    it('should handle array result', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => [1, 2, 3]) as unknown as ModelWithTelemetry;
+      model.displayName = 'array-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle string result', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => 'string result') as unknown as ModelWithTelemetry;
+      model.displayName = 'string-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle number result', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => 42) as unknown as ModelWithTelemetry;
+      model.displayName = 'number-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle boolean result', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => true) as unknown as ModelWithTelemetry;
+      model.displayName = 'boolean-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle null result', async () => {
+      const ctx = createContext();
+      const model = vi.fn(() => null) as unknown as ModelWithTelemetry;
+      model.displayName = 'null-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
+
+    it('should handle object result that cannot be stringified', async () => {
+      const ctx = createContext();
+      // Create object with circular reference
+      const circular: any = {value: 'test'};
+      circular.self = circular;
+      const model = vi.fn(() => circular) as unknown as ModelWithTelemetry;
+      model.displayName = 'circular-result-model';
+      model.displayResult = '*';
+
+      await ctx.request(model, {});
+
+      const span = getSpan(ctx);
+      expect(span).toBeDefined();
+    });
   });
 });
