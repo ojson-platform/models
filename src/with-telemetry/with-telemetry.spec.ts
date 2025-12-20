@@ -27,7 +27,7 @@ describe('withTelemetry', () => {
     if (sdk) {
       try {
         await sdk.shutdown();
-      } catch (error) {
+      } catch {
         // Ignore shutdown errors (may occur if SDK wasn't fully initialized)
       }
     }
@@ -306,7 +306,7 @@ describe('withTelemetry', () => {
     // Props are recorded on child span BEFORE model execution, but execution is interrupted
     // So props may or may not be recorded depending on when interruption happens
     // Result is recorded AFTER request execution, so it won't be set if request is interrupted
-    const childSetAttributesSpy = vi.spyOn(modelSpan!.span, 'setAttributes');
+    const _childSetAttributesSpy = vi.spyOn(modelSpan!.span, 'setAttributes');
     const childAddEventSpy = vi.spyOn(modelSpan!.span, 'addEvent');
     try {
       await ctx.request(model, {test: 2});

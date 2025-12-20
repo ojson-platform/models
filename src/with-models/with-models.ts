@@ -1,6 +1,6 @@
 import type {BaseContext} from '../context';
 import type {Key, Model, OJson, Json, Actor, ModelProps, ModelResult, ModelCtx} from '../types';
-import type {Registry, Request, WithModels} from './types';
+import type {Registry, WithModels} from './types';
 
 import {isGenerator, isPromise, isPlainObject, sign, cleanUndefined} from '../utils';
 
@@ -142,7 +142,9 @@ async function request<M extends Model<any, any, any>>(
         }
 
         if (isGenerator<Result>(value)) {
-          !done && states.push(call);
+          if (!done) {
+            states.push(call);
+          }
           [call, value, done] = [value, undefined, false];
         } else if (isPromise<Result>(value)) {
           try {

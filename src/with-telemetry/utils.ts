@@ -134,7 +134,7 @@ export function ensureNodeSDKInitialized(): void {
     if (!tracer) {
       throw new Error('Tracer is not available');
     }
-  } catch (error) {
+  } catch {
     throw new Error(
       'withTelemetry requires NodeSDK from @opentelemetry/sdk-node to be initialized. ' +
         'Please initialize NodeSDK before using withTelemetry:\n\n' +

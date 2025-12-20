@@ -1,6 +1,6 @@
 import type {BaseContext} from '../context';
 import type {Model, OJson, Json} from '../types';
-import type {Request, WithModels} from '../with-models';
+import type {WithModels} from '../with-models';
 import type {Cache} from './cache';
 import type {CacheConfig, CacheStrategy, WithCache} from './types';
 

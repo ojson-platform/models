@@ -4,7 +4,7 @@ import type {WithModels} from '../with-models';
 import type {CacheProvider, CacheConfig} from './types';
 
 import {sign} from '../utils';
-import {InterruptedError, withModels} from '../with-models';
+import {InterruptedError} from '../with-models';
 
 /**
  * High-level cache helper that:

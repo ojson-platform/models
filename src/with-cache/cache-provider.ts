@@ -26,7 +26,7 @@ export class MemoryCache implements CacheProvider {
   private memory = new Map<Key, {value: Json; deadline: number}>();
 
   /** Timer handle for periodic cleanup */
-  private timer: NodeJS.Timeout;
+  private timer: ReturnType<typeof setTimeout>;
 
   /**
    * Creates a new MemoryCache instance.
