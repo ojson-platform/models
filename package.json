@@ -27,7 +27,7 @@
     "test:coverage": "vitest --run --coverage",
     "test:coverage:fast": "vitest --run --coverage --exclude 'examples/**'",
     "test:types": "tspc -p tsconfig.types.json",
-    "test:integration": "vitest --run examples/**/*.spec.ts",
+    "test:integration": "vitest --run examples/",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",

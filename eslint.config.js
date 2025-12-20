@@ -92,7 +92,7 @@ export default [
   },
   prettier,
   {
-    ignores: ['build/', 'node_modules/', 'examples/', 'dist/', '*.config.js', 'scripts/'],
+    ignores: ['build/', 'node_modules/', 'examples/', 'dist/', '*.config.js', '*.config.ts', 'scripts/'],
   },
 ];
 
