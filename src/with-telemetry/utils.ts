@@ -4,7 +4,7 @@ import type {Attributes, AttributeValue} from '@opentelemetry/api';
 
 import {trace} from '@opentelemetry/api';
 
-import {isOJson} from '../utils';
+import {has, isOJson} from '../utils';
 
 /** @internal Model execution info stored in AsyncLocalStorage for parallel/nested calls. */
 export interface ModelInfo {
@@ -100,15 +100,15 @@ export function extractResultFields(value: Json, filter: PropsFilter): Attribute
 
 /** @internal Extracts a readable error message from an error object. */
 export function extractMessage(error: unknown): string {
-  if (!error) {
-    return '';
+  if (error === null || error === undefined) {
+    return String(error);
   }
 
   if (typeof error === 'string') {
     return error;
   }
 
-  if (typeof error === 'object' && error !== null && 'message' in error) {
+  if (has(error, 'message')) {
     return String((error as {message: unknown}).message);
   }
 
@@ -117,7 +117,7 @@ export function extractMessage(error: unknown): string {
 
 /** @internal Extracts stack trace from an error object if available. */
 export function extractStacktrace(error: unknown): string | undefined {
-  if (error && typeof error === 'object' && error !== null && 'stack' in error) {
+  if (has(error, 'stack')) {
     return String((error as {stack: unknown}).stack);
   }
 }

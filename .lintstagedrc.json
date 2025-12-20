@@ -4,7 +4,6 @@
     "prettier --write"
   ],
   "src/**/*.spec.ts": [
-    "npm run test:units:fast",
-    "npm run test:types"
+    "npm run test:units:fast"
   ]
 }

@@ -3,7 +3,7 @@ import type {Key, Model, OJson, Json} from '../types';
 import type {WithModels} from '../with-models';
 import type {CacheProvider, CacheConfig} from './types';
 
-import {sign} from '../utils';
+import {sign, has} from '../utils';
 import {InterruptedError} from '../with-models';
 
 /**
@@ -110,7 +110,7 @@ export class Cache implements CacheProvider {
 
         // Disable cache on the context if it has cache capabilities
         // This prevents recursive caching when the factory applies withCache
-        if ('disableCache' in ctx && typeof ctx.disableCache === 'function') {
+        if (has(ctx, 'disableCache', 'function')) {
           ctx.disableCache();
         }
 

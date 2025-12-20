@@ -8,6 +8,8 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 
 import {SpanKind, SpanStatusCode, trace, context as otelContext} from '@opentelemetry/api';
 
+import {has} from '../utils';
+
 import {__ModelStorage__, __Span__} from './types';
 import {
   extractFields,
@@ -30,8 +32,8 @@ export function getSpan(ctx: BaseContext | undefined): Span | undefined {
     return undefined;
   }
 
-  if (__Span__ in ctx) {
-    return ctx[__Span__] as Span | undefined;
+  if (has(ctx, __Span__)) {
+    return (ctx as WithTelemetry<WithModels<BaseContext>>)[__Span__];
   }
   return undefined;
 }
@@ -167,8 +169,7 @@ const wrapEnd = (end: WithModels<BaseContext>['end']) =>
     const span = this[__Span__];
     if (span.isRecording()) {
       // Use endTime if available (from Context class), otherwise use current time
-      const endTime =
-        'endTime' in this && typeof this.endTime === 'number' ? this.endTime : Date.now();
+      const endTime = has(this, 'endTime', 'number') ? this.endTime : Date.now();
       span.end(endTime);
     }
   };
@@ -194,8 +195,7 @@ const wrapFail = (fail: WithModels<BaseContext>['fail']) =>
         message: extractMessage(error),
       });
       // Use endTime if available (from Context class), otherwise use current time
-      const endTime =
-        'endTime' in this && typeof this.endTime === 'number' ? this.endTime : Date.now();
+      const endTime = has(this, 'endTime', 'number') ? this.endTime : Date.now();
       span.end(endTime);
     }
   };

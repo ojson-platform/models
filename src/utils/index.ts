@@ -261,3 +261,50 @@ export const isPromise = <Result>(target: any): target is Promise<Result> =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any is required for type guard to accept any value
 export const isPlainObject = <Result>(target: any): target is Result =>
   String(target) === '[object Object]';
+
+/**
+ * Checks if an object has a property with an optional type check.
+ *
+ * @param obj - Object to check
+ * @param prop - Property name (string or symbol)
+ * @param type - Optional type to check (e.g., 'function', 'number', 'string')
+ * @returns True if object has the property and (if type specified) it matches the type
+ *
+ * @example
+ * ```typescript
+ * has(ctx, 'disableCache', 'function') // checks if ctx has disableCache method
+ * has(ctx, 'endTime', 'number') // checks if ctx has endTime number property
+ * has(ctx, __Span__) // checks if ctx has __Span__ property (any type)
+ * ```
+ */
+/* eslint-disable no-redeclare -- TypeScript function overloads */
+export function has(obj: unknown, prop: string | symbol): boolean;
+export function has<T extends string>(
+  obj: unknown,
+  prop: string | symbol,
+  type: T,
+): obj is Record<string | symbol, unknown> & {
+  [K in typeof prop]: T extends 'function'
+    ? Function
+    : T extends 'number'
+      ? number
+      : T extends 'string'
+        ? string
+        : T extends 'object'
+          ? object
+          : unknown;
+};
+export function has(obj: unknown, prop: string | symbol, type?: string): boolean {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return false;
+  }
+  if (!(prop in obj)) {
+    return false;
+  }
+  if (type === undefined) {
+    return true;
+  }
+  const value = (obj as Record<string | symbol, unknown>)[prop];
+  return typeof value === type;
+}
+/* eslint-enable no-redeclare */
