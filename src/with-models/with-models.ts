@@ -15,12 +15,36 @@ import {__Registry__} from './types';
 const Dead = Symbol('Dead');
 
 /**
- * Processes a generator function, handling nested generators and promises.
- * Returns the final value or Dead symbol if execution was interrupted.
+ * Handles nested generator by pushing current generator to states and switching to new one.
  *
- * @param generator - The generator to process
- * @param ctx - Context for checking if execution is alive and resolving promises
- * @returns The final value or Dead symbol
+ * @internal
+ */
+function handleNestedGenerator<Result>(
+  value: Generator<Result>,
+  call: Generator<Result>,
+  done: boolean,
+  states: Generator<Result>[],
+): [Generator<Result>, Result | undefined, boolean] {
+  if (!done) {
+    states.push(call);
+  }
+  return [value, undefined, false];
+}
+
+/**
+ * Resolves a promise value using context resolver.
+ *
+ * @internal
+ */
+async function resolvePromiseValue<Result>(
+  value: Promise<Result>,
+  ctx: WithModels<BaseContext>,
+): Promise<Result> {
+  return (await ctx.resolve(value as Promise<Json>)) as Result;
+}
+
+/**
+ * Processes a generator function, handling nested generators and promises.
  *
  * @internal
  */
@@ -48,13 +72,10 @@ async function processGenerator<Result>(
     }
 
     if (isGenerator<Result>(value)) {
-      if (!done) {
-        states.push(call);
-      }
-      [call, value, done] = [value, undefined, false];
+      [call, value, done] = handleNestedGenerator(value, call, done, states);
     } else if (isPromise<Result>(value)) {
       try {
-        value = (await ctx.resolve(value as Promise<Json>)) as Result;
+        value = await resolvePromiseValue(value, ctx);
       } catch (e) {
         error = e;
       }
@@ -87,27 +108,6 @@ export class InterruptedError extends Error {
 
 /**
  * Executes a model with automatic memoization.
- *
- * Handles three types of model results:
- * - Synchronous objects: returned immediately
- * - Promises: resolved with interrupt checking
- * - Generators: executed step-by-step with nested generator support
- *
- * Models are memoized by key: `${displayName};${sign(props)}`
- * Subsequent calls with same model and props return cached result.
- *
- * @template Props - The input parameters type
- * @template Result - The return type
- *
- * @this {WithModels<BaseContext>} - The context with model capabilities
- * @param model - The model to execute (function or object with action method)
- * @param props - Optional input parameters for the model. Defaults to empty object if not provided.
- * @returns Promise resolving to model result
- *
- * @throws {TypeError} If model lacks displayName property
- * @throws {TypeError} If model is not a function or object with action method
- * @throws {TypeError} If model returns unexpected result type
- * @throws {InterruptedError} If execution was interrupted (context was killed)
  *
  * @internal
  */
@@ -216,38 +216,7 @@ const wrapCreate = <CTX extends BaseContext>(create: CTX['create']) =>
   };
 
 /**
- * Wraps a context with model request capabilities.
- *
- * Adds:
- * - Shared registry for memoization across context hierarchy
- * - `request()` method for calling models
- * - `kill()` and `isAlive()` for execution control
- * - `resolve()` for promise resolution with interrupt checking
- * - Enhanced `create()` that preserves model capabilities in children
- *
- * The registry is shared across all contexts in the same request lifecycle,
- * enabling memoization to work across nested contexts.
- *
- * @template CTX - The context type
- * @param ctx - The base context to enhance
- * @param registry - Optional shared registry (creates new one if not provided)
- * @returns Enhanced context with model capabilities
- *
- * @internal
- */
-/**
- * Sets a pre-computed value for a model.
- *
- * Uses the same registry as `request()` for consistency. Builds cache keys
- * using displayName and serialized props (same as `request()`). Throws an error
- * if a value already exists in the registry for the given model+props.
- *
- * @this {WithModels<BaseContext>} - The context with model capabilities
- * @param model - The model to set a value for
- * @param value - The pre-computed value for the model
- * @param props - Optional props for the model (defaults to empty object)
- * @throws {TypeError} If model lacks displayName property
- * @throws {Error} If value already exists in registry for the given model+props
+ * Sets a pre-computed value for a model in the registry.
  *
  * @internal
  */
@@ -277,6 +246,11 @@ function set<M extends Model<any, any, any>>(
   this[__Registry__].set(key, Promise.resolve(value));
 }
 
+/**
+ * Wraps a context with model request capabilities.
+ *
+ * @internal
+ */
 const wrapContext = <CTX extends BaseContext>(ctx: CTX, registry?: Registry) => {
   let state = null;
 
