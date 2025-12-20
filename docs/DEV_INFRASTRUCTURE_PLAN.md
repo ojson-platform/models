@@ -117,7 +117,7 @@
 - [x] Добавить скрипт `format` в package.json
 - [x] Добавить скрипт `format:check` для CI
 - [x] Настроить ESLint для работы с Prettier (использовать `eslint-config-prettier`)
-- [ ] Интегрировать с pre-commit hook через lint-staged
+- [x] Интегрировать с pre-commit hook через lint-staged (добавлено в `.lintstagedrc.json`)
 
 #### 6.2. Coverage отчеты
 
@@ -158,7 +158,18 @@
 - [ ] Добавить отдельный job в workflow для type checking (опционально, сверх `test:types`)
 - [ ] Использовать `tsc --noEmit` для проверки типов
 
-#### 6.6. Проверка примеров ✅
+#### 6.6. Избавиться от всех ворнингов в линтере
+
+**Цель:** Улучшить качество кода, устранив все предупреждения ESLint
+
+**Задачи:**
+- [ ] Проанализировать текущие ворнинги ESLint
+- [ ] Исправить ворнинги `@typescript-eslint/no-explicit-any` где возможно (заменить на более конкретные типы)
+- [ ] Для случаев, где `any` необходим (например, в type utilities), добавить `eslint-disable` комментарии с обоснованием
+- [ ] Убедиться, что `npm run lint` не выдает ворнингов
+- [ ] Обновить CI workflow для fail при наличии ворнингов (опционально)
+
+#### 6.7. Проверка примеров ✅
 
 **Цель:** Убедиться, что примеры компилируются (examples - это интеграционный слой)
 
@@ -167,7 +178,7 @@
 - [x] Проверка компиляции examples/todo-api (`npm run build` в examples/todo-api)
 - [x] Запускать интеграционные тесты из examples (отдельно от unit-тестов)
 
-#### 6.7. Security scanning
+#### 6.8. Security scanning
 
 **Цель:** Поиск уязвимостей в зависимостях
 
@@ -176,7 +187,7 @@
 - [ ] Или использовать GitHub Dependabot security updates
 - [ ] Использовать Snyk или аналогичные инструменты (опционально)
 
-#### 6.8. Bundle size monitoring
+#### 6.9. Bundle size monitoring
 
 **Цель:** Отслеживание размера бандла
 
@@ -194,14 +205,16 @@
 4. GitHub Actions: Линтер ✅
 
 ### Фаза 2 (Важно):
-5. Pre-commit хуки (Husky + lint-staged) - ESLint, Prettier, полные тесты (без examples)
+5. Pre-commit хуки (Husky + lint-staged) - ESLint, Prettier, полные тесты (без examples) ✅
 6. GitHub Actions: Публикация npm
 7. GitHub Actions: Проверка примеров (интеграционные тесты) ✅
+8. Избавиться от всех ворнингов в линтере
 
 ### Фаза 3 (Желательно):
-8. Coverage отчеты (без порогов пока)
-9. Dependabot
-10. Type checking в CI
+9. Coverage отчеты (без порогов пока)
+10. Dependabot
+11. Type checking в CI
+12. Избавиться от всех ворнингов в линтере
 
 ### Фаза 4 (Опционально):
 11. Release notes автоматизация (release-please)
@@ -220,6 +233,7 @@
 
 ## Следующие шаги
 
-1. Настроить pre-commit хуки (Husky + lint-staged)
-2. Добавить workflow публикации npm и интегрировать release-please
-3. Постепенно добавлять Coverage, Dependabot, security-сканы и т.д.
+1. ✅ Настроить pre-commit хуки (Husky + lint-staged)
+2. Избавиться от всех ворнингов в линтере
+3. Добавить workflow публикации npm и интегрировать release-please
+4. Постепенно добавлять Coverage, Dependabot, security-сканы и т.д.
