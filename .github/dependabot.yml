@@ -31,4 +31,7 @@ updates:
       - dependency-name: '*'
         update-types:
           - 'version-update:semver-major'
+  # Note: Dependabot security updates are enabled automatically by GitHub
+  # when dependabot.yml exists. Security updates create PRs for vulnerabilities
+  # independently of the regular update schedule above.
 

@@ -195,14 +195,27 @@
 - [x] Проверка компиляции examples/todo-api (`npm run build` в examples/todo-api)
 - [x] Запускать интеграционные тесты из examples (отдельно от unit-тестов)
 
-#### 6.8. Security scanning
+#### 6.8. Security scanning ✅
 
 **Цель:** Поиск уязвимостей в зависимостях
 
 **Задачи:**
-- [ ] Использовать `npm audit` в CI
-- [ ] Или использовать GitHub Dependabot security updates
-- [ ] Использовать Snyk или аналогичные инструменты (опционально)
+- [x] Использовать `npm audit` в CI (`.github/workflows/security.yml`)
+  - Запуск при push/PR и по расписанию (еженедельно)
+  - Уровень проверки: moderate и выше
+  - Загрузка результатов как артефакты при ошибках
+- [x] Настроить GitHub Dependabot security updates
+  - Автоматические PR для уязвимостей
+  - Ежедневная проверка
+  - Labels: security, dependabot
+  - Commit message prefix: security
+- [ ] Использовать Snyk или аналогичные инструменты (опционально, для будущего)
+
+**Реализовано:**
+- Security workflow с npm audit
+- Dependabot security updates (автоматические PR для уязвимостей)
+- Еженедельное автоматическое сканирование
+- SonarCloud также выполняет security scanning
 
 ## Приоритеты реализации
 
