@@ -1,6 +1,6 @@
 {
   "name": "@ojson/models",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Declarative data retrieval with automatic memoization for server-side TypeScript applications",
   "type": "module",
   "main": "build/index.js",
