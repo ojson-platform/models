@@ -13,18 +13,18 @@ import {InterruptedError} from '../with-models';
  * - can recompute and update entries via `update`.
  */
 export class Cache implements CacheProvider {
-  private _config: CacheConfig;
+  private readonly _config: CacheConfig;
 
-  private _provider: CacheProvider;
+  private readonly _provider: CacheProvider;
 
-  private _updates = new Map<Key, Promise<void>>();
+  private readonly _updates = new Map<Key, Promise<void>>();
 
   /**
    * Factory for creating a background `WithModels<BaseContext>` used by `update()`.
    * If the created context has `disableCache()`, it will be called automatically
    * to prevent recursive caching.
    */
-  private _createBaseContext: (name: string) => WithModels<BaseContext>;
+  private readonly _createBaseContext: (name: string) => WithModels<BaseContext>;
 
   /** Cache configuration with TTL settings per strategy. */
   get config() {
@@ -99,7 +99,7 @@ export class Cache implements CacheProvider {
 
     // If update is already in progress for this key, return existing promise
     const existingUpdate = this._updates.get(key);
-    if (existingUpdate) {
+    if (existingUpdate !== undefined) {
       return existingUpdate;
     }
 

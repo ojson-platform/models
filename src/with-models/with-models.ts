@@ -15,6 +15,56 @@ import {__Registry__} from './types';
 const Dead = Symbol('Dead');
 
 /**
+ * Processes a generator function, handling nested generators and promises.
+ * Returns the final value or Dead symbol if execution was interrupted.
+ *
+ * @param generator - The generator to process
+ * @param ctx - Context for checking if execution is alive and resolving promises
+ * @returns The final value or Dead symbol
+ *
+ * @internal
+ */
+async function processGenerator<Result>(
+  generator: Generator<Result>,
+  ctx: WithModels<BaseContext>,
+): Promise<Result | typeof Dead> {
+  const states: Generator<Result>[] = [];
+  let call: Generator<Result> = generator;
+  let value: Result | undefined = undefined;
+  let error: unknown = undefined;
+  let done = false;
+
+  while (!done) {
+    if (!ctx.isAlive()) {
+      return Dead;
+    }
+
+    ({value, done} = error
+      ? call.throw(error)
+      : call.next(value));
+
+    if (done && states.length) {
+      [call, done] = [states.pop()!, false];
+    }
+
+    if (isGenerator<Result>(value)) {
+      if (!done) {
+        states.push(call);
+      }
+      [call, value, done] = [value, undefined, false];
+    } else if (isPromise<Result>(value)) {
+      try {
+        value = await ctx.resolve(value);
+      } catch (e) {
+        error = e;
+      }
+    }
+  }
+
+  return value as Result;
+}
+
+/**
  * Error thrown when a model execution is interrupted (context was killed).
  *
  * @example
@@ -93,12 +143,12 @@ async function request<M extends Model<any, any, any>>(
     return cached as Result;
   }
 
-  const action =
-    typeof model === 'function'
-      ? (model as Actor<Props, Result, Ctx>)
-      : typeof model.action === 'function'
-        ? (model.action as Actor<Props, Result, Ctx>)
-        : null;
+  let action: Actor<Props, Result, Ctx> | null = null;
+  if (typeof model === 'function') {
+    action = model as Actor<Props, Result, Ctx>;
+  } else if (typeof model.action === 'function') {
+    action = model.action as Actor<Props, Result, Ctx>;
+  }
 
   if (typeof action !== 'function') {
     throw new TypeError('Unexpected model type for ' + displayName);
@@ -109,10 +159,8 @@ async function request<M extends Model<any, any, any>>(
       return Dead;
     }
 
-    let call = action(cleanedProps, ctx as Ctx);
-    let value = undefined,
-      error = undefined,
-      done = false;
+    const call = action(cleanedProps, ctx as Ctx);
+    let value: Result | undefined = undefined;
 
     if (isPromise<Result>(call)) {
       value = await ctx.resolve(call);
@@ -127,33 +175,11 @@ async function request<M extends Model<any, any, any>>(
       // All of these are valid Json values
       value = call;
     } else if (isGenerator<Result>(call)) {
-      const states = [];
-      while (!done) {
-        if (!ctx.isAlive()) {
-          return Dead;
-        }
-
-        ({value, done} = error
-          ? (call as Generator<Result>).throw(error)
-          : (call as Generator<Result>).next(value));
-
-        if (done && states.length) {
-          [call, done] = [states.pop(), false];
-        }
-
-        if (isGenerator<Result>(value)) {
-          if (!done) {
-            states.push(call);
-          }
-          [call, value, done] = [value, undefined, false];
-        } else if (isPromise<Result>(value)) {
-          try {
-            value = await ctx.resolve(value);
-          } catch (e) {
-            error = e;
-          }
-        }
+      const result = await processGenerator(call as Generator<Result>, ctx);
+      if (result === Dead) {
+        return Dead;
       }
+      value = result;
     } else {
       throw new TypeError('Unexpected model result');
     }

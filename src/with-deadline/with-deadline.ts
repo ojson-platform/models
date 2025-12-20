@@ -44,7 +44,10 @@ export function withDeadline(timeout = 0) {
     const {resolve, kill} = ctx;
     const [deadline, clear] = wait(timeout);
 
-    ctx.kill = () => (clear(), kill.call(ctx));
+    ctx.kill = () => {
+      clear();
+      return kill.call(ctx);
+    };
     ctx.resolve = value => Promise.race([resolve.call(ctx, value), deadline.then(ctx.kill)]);
 
     return ctx;

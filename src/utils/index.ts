@@ -218,7 +218,7 @@ export function sign(props: OJson, set?: Set<unknown>) {
   set = set || new Set();
 
   Object.keys(props)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .forEach(key => {
       const value = props[key];
 

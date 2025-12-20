@@ -14,11 +14,11 @@ export interface BaseContext {
 }
 
 export class Context implements BaseContext {
-  private _name: string;
+  private readonly _name: string;
 
-  private _parent: BaseContext | undefined;
+  private readonly _parent: BaseContext | undefined;
 
-  private _startTime: number;
+  private readonly _startTime: number;
 
   private _endTime: number;
 
