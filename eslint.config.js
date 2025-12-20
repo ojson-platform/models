@@ -54,6 +54,20 @@ export default [
         },
       ],
       'import/no-unresolved': 'off',
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../with-*/**/*',
+                '!../with-*',
+              ],
+              message: 'Import from module root instead of internal module files',
+            },
+          ],
+        },
+      ],
     },
   },
   {
