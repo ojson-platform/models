@@ -49,6 +49,8 @@ import {localFunction} from './local-module';
 
 Within each group (types or runtime), imports are sorted by source location: external → parent → local.
 
+**Module boundaries**: When importing from other modules in `src/with-*/`, always import from the module root (e.g., `'../with-models'`) rather than internal files (e.g., `'../with-models/types'`). This is enforced by ESLint rule `no-restricted-imports`.
+
 ## Testing Instructions
 
 - Test files use `.spec.ts` extension (excluded from build).
@@ -113,5 +115,19 @@ Additional notes:
 
 - All public APIs are documented with JSDoc comments.
 - Type definitions provide full TypeScript support with strict typing for models, props, and results.
+
+### Utility Functions
+
+**Property checking**: Use the `has()` utility from `src/utils` for checking object properties with optional type validation. This is cleaner than using `'prop' in obj && typeof obj.prop === 'type'`:
+
+```typescript
+// Instead of: 'disableCache' in ctx && typeof ctx.disableCache === 'function'
+if (has(ctx, 'disableCache', 'function')) {
+  ctx.disableCache();
+}
+
+// Instead of: 'endTime' in this && typeof this.endTime === 'number'
+const endTime = has(this, 'endTime', 'number') ? this.endTime : Date.now();
+```
 
 

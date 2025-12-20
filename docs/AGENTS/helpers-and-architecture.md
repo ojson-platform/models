@@ -110,4 +110,15 @@ Contexts form a tree structure:
 - telemetry spans follow context hierarchy;
 - child contexts are created via `ctx.create(name)`, which returns a new context with the same registry.
 
+### Module Boundaries – architecture notes
+
+Modules in `src/with-*/` must respect strict boundaries:
+
+- **Cross-module imports**: Modules can only import from other modules via their `index.ts` files, not from internal files (e.g., `types.ts`, `utils.ts`, `with-*.ts`).
+- **Enforcement**: ESLint rule `no-restricted-imports` automatically enforces this pattern.
+- **Rationale**: This prevents tight coupling between modules and ensures clean public APIs. Internal implementation details of one module should not be accessed by another module.
+- **Example**:
+  - ❌ `import {Registry} from '../with-models/types'` – blocked
+  - ✅ `import {Registry} from '../with-models'` – allowed (resolves to `index.ts`)
+
 

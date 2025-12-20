@@ -122,6 +122,22 @@ The `sign()` utility creates deterministic keys from `OJson`:
 - circular reference protection;
 - uses `URLSearchParams` for serialization.
 
+### Property Checking (`has`)
+
+The `has()` utility checks if an object has a property with optional type validation:
+
+- checks property existence (string or symbol);
+- optional type validation ('function', 'number', 'string', 'object');
+- returns type guard when type is specified;
+- useful for checking dynamic properties without using `any`.
+
+**Example:**
+```typescript
+has(ctx, 'disableCache', 'function') // checks if ctx has disableCache method
+has(ctx, 'endTime', 'number') // checks if ctx has endTime number property
+has(ctx, __Span__) // checks if ctx has __Span__ property (any type)
+```
+
 ### Helper Modules Overview
 
 Additional helpers that can be composed with `withModels`:

@@ -60,6 +60,7 @@ This document describes the development infrastructure setup for the project, in
   - Import order: type imports first, then runtime imports
   - Unused vars: allows `_` prefix for intentionally unused variables
   - `no-explicit-any`: warning (off in test files)
+  - `no-restricted-imports`: enforces module boundaries - modules can only import from other modules via their `index.ts` files, not from internal files (e.g., `types.ts`, `utils.ts`, `with-*.ts`)
 - **Ignores**: `build/`, `node_modules/`, `examples/`, `dist/`, `*.config.js`, `scripts/`
 
 ### Prettier
