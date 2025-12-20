@@ -10,6 +10,38 @@
 - **All comments must be in English** (including test comments and inline documentation).
 - **All commit messages must be in English** (including commit titles and descriptions).
 
+### Commit Message Format
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+```
+
+**Type** (required): One of the following:
+
+- `feat`: New feature for end users (e.g., new helper function, new API method, new model capability)
+- `fix`: Bug fix for end users (e.g., fixing incorrect memoization, fixing error handling)
+- `perf`: Performance improvement (e.g., optimizing cache lookup, reducing memory usage)
+- `refactor`: Code refactoring that doesn't change functionality (e.g., extracting helper functions, reorganizing code)
+- `docs`: Documentation changes only (e.g., updating README, adding JSDoc comments, updating AGENTS)
+- `chore`: Maintenance tasks and infrastructure changes (e.g., updating dependencies, configuring ESLint, setting up CI/CD, updating build scripts)
+- `revert`: Reverting a previous commit
+
+**Key distinction**: `feat` is for **user-facing functionality**, while `chore` is for **development infrastructure**:
+
+- ✅ `feat(cache): add CacheFirst strategy` – new caching feature for users
+- ✅ `chore(lint): add module import restrictions` – ESLint configuration change
+- ❌ `feat(lint): add module import restrictions` – incorrect (this is infrastructure, not user feature)
+
+**Scope** (optional): The area of the codebase affected (e.g., `cache`, `models`, `telemetry`, `lint`).
+
+**Subject** (required): Brief description in imperative mood (e.g., "add", "fix", "update", not "added", "fixed", "updated").
+
+**Body** (optional): Detailed explanation of what and why, separated from subject by blank line.
+
 ### Import Organization
 
 Imports must be organized in a specific order:
