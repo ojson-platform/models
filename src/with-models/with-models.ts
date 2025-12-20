@@ -54,7 +54,7 @@ async function processGenerator<Result>(
       [call, value, done] = [value, undefined, false];
     } else if (isPromise<Result>(value)) {
       try {
-        value = await ctx.resolve(value);
+        value = (await ctx.resolve(value as Promise<Json>)) as Result;
       } catch (e) {
         error = e;
       }
@@ -163,7 +163,7 @@ async function request<M extends Model<any, any, any>>(
     let value: Result | undefined = undefined;
 
     if (isPromise<Result>(call)) {
-      value = await ctx.resolve(call);
+      value = (await ctx.resolve(call as Promise<Json>)) as Result;
     } else if (
       isPlainObject(call) ||
       Array.isArray(call) ||
@@ -173,7 +173,8 @@ async function request<M extends Model<any, any, any>>(
       // Handle objects, arrays, primitives (null, number, string, boolean)
       // Note: undefined is not a valid JSON value, so it's excluded
       // All of these are valid Json values
-      value = call;
+      // At this point, call is not a Promise or Generator, so it's a valid Result
+      value = call as Result;
     } else if (isGenerator<Result>(call)) {
       const result = await processGenerator(call as Generator<Result>, ctx);
       if (result === Dead) {
