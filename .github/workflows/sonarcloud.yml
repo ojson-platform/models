@@ -36,4 +36,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: .
+          # sonar.organization is set in sonar-project.properties
+          # If needed, can be overridden here:
+          # args: >
+          #   -Dsonar.organization=your-org-name
 

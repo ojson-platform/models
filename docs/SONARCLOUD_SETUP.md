@@ -37,17 +37,22 @@
 
 ### 4. Обновление sonar-project.properties
 
-После создания проекта в SonarCloud, вам нужно обновить `sonar.projectKey` в `sonar-project.properties`:
+После создания проекта в SonarCloud, вам нужно обновить `sonar.organization` и `sonar.projectKey` в `sonar-project.properties`:
 
 1. В SonarCloud найдите ваш проект
 2. Перейдите в **Project Settings** → **Information**
-3. Скопируйте **Project Key** (например, `username_repo-name`)
-4. Обновите `sonar.projectKey` в `sonar-project.properties`
+3. Скопируйте:
+   - **Organization Key** (например, `your-org` или `username`)
+   - **Project Key** (например, `your-org_ojson-models`)
+4. Обновите значения в `sonar-project.properties`
 
 **Пример:**
 ```properties
+sonar.organization=your-org
 sonar.projectKey=your-org_ojson-models
 ```
+
+**Важно:** `sonar.organization` - обязательный параметр. Если он не указан, SonarCloud выдаст ошибку.
 
 ## Проверка локально
 
