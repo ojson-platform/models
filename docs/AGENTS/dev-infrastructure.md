@@ -146,6 +146,73 @@ This document describes the development infrastructure setup for the project, in
   4. Run tests with coverage (`npm run test:coverage:fast`)
   5. SonarCloud scan (uses `SONAR_TOKEN` secret)
 
+### Security Workflow (`.github/workflows/security.yml`)
+
+- **Triggers**: `push`, `pull_request` to `master`/`main`, weekly schedule (Monday, 06:00 UTC)
+- **Node.js version**: 22.x
+- **Steps**:
+  1. Checkout code
+  2. Setup Node.js with npm cache
+  3. Install dependencies (`npm ci`)
+  4. Run npm audit (`npm audit --audit-level=moderate`)
+  5. Upload audit results as artifacts on failure
+
+### Release Please Workflow (`.github/workflows/release-please.yml`)
+
+- **Triggers**: `push` to `master`/`main`
+- **Action**: `google-github-actions/release-please-action@v4`
+- **Config**: `.release-please-config.json`
+- **Purpose**: Automatically creates PRs with version bumps and CHANGELOG updates based on Conventional Commits
+- **Strategy**: Variant B - PR with version, merge → release + npm publish
+- **Permissions**: `contents: write`, `pull-requests: write`
+
+### Publish Workflow (`.github/workflows/publish.yml`)
+
+- **Triggers**: `release` event (when a release is published)
+- **Node.js version**: 22.x
+- **Steps**:
+  1. Checkout code (with `fetch-depth: 0`)
+  2. Setup Node.js with npm registry
+  3. Install dependencies (`npm ci`)
+  4. Run tests (`test:units:fast` + `test:types`)
+  5. Build package (`npm run build`)
+  6. Verify build files exist
+  7. Check version matches release tag
+  8. Publish to npm (`npm publish --provenance --access public`)
+- **Secrets**: `NPM_TOKEN` (required)
+- **Permissions**: `contents: read`, `id-token: write` (for provenance)
+
+## Release Process
+
+The project uses **release-please** for automated releases:
+
+1. **Conventional Commits**: All commits should follow [Conventional Commits](https://www.conventionalcommits.org/) format:
+   - `feat:` - New features (minor version bump)
+   - `fix:` - Bug fixes (patch version bump)
+   - `feat!:` or `fix!:` - Breaking changes (major version bump)
+   - `chore:`, `docs:`, `refactor:`, etc. - No version bump
+
+2. **Release Please**: 
+   - Monitors commits on `master`/`main` branch
+   - Creates PRs with version bumps and CHANGELOG updates
+   - PR title format: `chore: release 1.2.3`
+   - Updates `package.json` version and `CHANGELOG.md`
+
+3. **Release Creation**:
+   - When release PR is merged, release-please automatically creates a GitHub release
+   - Release tag format: `v1.2.3`
+
+4. **NPM Publication**:
+   - When a release is published, the publish workflow automatically:
+     - Runs tests
+     - Builds the package
+     - Verifies version matches release tag
+     - Publishes to npm with provenance
+
+**Required Setup**:
+- `NPM_TOKEN` secret must be configured in GitHub repository settings
+- Token must have publish permissions for `@ojson/models` scope
+
 ## NPM Scripts
 
 ### Build

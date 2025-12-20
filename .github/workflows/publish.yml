@@ -1,0 +1,66 @@
+name: Publish Package to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:units:fast && npm run test:types
+
+      - name: Build package
+        run: npm run build
+
+      - name: Verify package contents
+        run: |
+          if [ ! -d "build" ]; then
+            echo "Error: build directory not found"
+            exit 1
+          fi
+          if [ ! -f "build/index.js" ]; then
+            echo "Error: build/index.js not found"
+            exit 1
+          fi
+          if [ ! -f "build/index.d.ts" ]; then
+            echo "Error: build/index.d.ts not found"
+            exit 1
+          fi
+
+      - name: Check version matches release tag
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          RELEASE_TAG=${GITHUB_REF#refs/tags/}
+          RELEASE_VERSION=${RELEASE_TAG#v}
+          if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "Error: package.json version ($PACKAGE_VERSION) does not match release tag ($RELEASE_VERSION)"
+            exit 1
+          fi
+          echo "Version check passed: $PACKAGE_VERSION"
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+

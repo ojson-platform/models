@@ -82,24 +82,25 @@
   - Запуск `npm run lint`
   - Запуск `npm run format:check`
 
-### 5. GitHub Actions: Публикация npm пакета
+### 5. GitHub Actions: Публикация npm пакета ✅
 
 **Цель:** Автоматическая публикация при создании release/tag
 
 **Задачи:**
-- [ ] Создать `.github/workflows/publish.yml`:
-  - Триггер: `release` event или tag `v*`
-  - Проверка версии в package.json
+- [x] Создать `.github/workflows/publish.yml`:
+  - Триггер: `release` event (при публикации release)
+  - Проверка версии в package.json (соответствие тегу release)
   - Сборка проекта (`npm run build`)
-  - Запуск тестов перед публикацией
-  - Публикация в npm registry
+  - Запуск тестов перед публикацией (`test:units:fast` + `test:types`)
+  - Проверка наличия build файлов
+  - Публикация в npm registry с `--provenance` и `--access public`
   - Использование `NPM_TOKEN` секрета
-  - Условная публикация (только для main/master ветки)
 
 **Важные моменты:**
-- Проверять, что версия в package.json соответствует тегу
-- Не публиковать, если тесты не прошли
-- Использовать `npm publish --dry-run` для проверки перед реальной публикацией
+- ✅ Проверка, что версия в package.json соответствует тегу release
+- ✅ Не публикует, если тесты не прошли
+- ✅ Проверка наличия build файлов перед публикацией
+- ✅ Использование `--provenance` для прозрачности сборки
 
 ### 6. Дополнительные улучшения
 
@@ -158,22 +159,37 @@
 - Группировка обновлений для production и development зависимостей
 - Major версии требуют ручного ревью
 
-#### 6.4. Release notes автоматизация (вариант B: release-please)
+#### 6.4. Release notes автоматизация (вариант B: release-please) ✅
 
 **Цель:** Автоматическая генерация changelog и подготовка релизов
 
 **Задачи:**
-- [ ] Добавить `release-please` как GitHub Action
-- [ ] Настроить стратегию релизов (вариант B: PR с версией, merge → релиз + npm publish)
-- [ ] Интегрировать с workflow публикации
+- [x] Добавить `release-please` как GitHub Action (`.github/workflows/release-please.yml`)
+- [x] Настроить стратегию релизов (вариант B: PR с версией, merge → релиз + npm publish)
+- [x] Создать конфигурацию `.release-please-config.json`:
+  - Release type: `node`
+  - Package name: `@ojson/models`
+  - Changelog path: `CHANGELOG.md`
+  - Version file: `package.json`
+- [x] Интегрировать с workflow публикации (автоматический запуск при создании release)
 
-#### 6.5. Type checking в CI
+**Реализовано:**
+- Release-please создает PR с обновлением версии и CHANGELOG.md на основе Conventional Commits
+- После merge PR автоматически создается release
+- При создании release запускается publish workflow
+- Версия в package.json автоматически обновляется release-please
+
+#### 6.5. Type checking в CI ❌
 
 **Цель:** Проверка типов отдельно от тестов
 
-**Задачи:**
-- [ ] Добавить отдельный job в workflow для type checking (опционально, сверх `test:types`)
-- [ ] Использовать `tsc --noEmit` для проверки типов
+**Статус:** Не требуется - type checking уже реализован:
+- ✅ Выполняется в CI через `npm run test:types` (`.github/workflows/test.yml`)
+- ✅ Выполняется в pre-commit через `npm run test:types` (`.lintstagedrc.json`)
+- ✅ `tspc` проверяет типы при сборке (`npm run build`)
+- ✅ ESLint проверяет типы через type-aware правила (`project: './tsconfig.json'`)
+
+**Примечание:** Отдельный job для `tsc --noEmit` избыточен, так как проверка типов уже покрыта существующими механизмами.
 
 #### 6.6. Избавиться от всех ворнингов в линтере
 
@@ -227,18 +243,18 @@
 
 ### Фаза 2 (Важно):
 5. Pre-commit хуки (Husky + lint-staged) - ESLint, Prettier, полные тесты (без examples) ✅
-6. GitHub Actions: Публикация npm
+6. GitHub Actions: Публикация npm ✅
 7. GitHub Actions: Проверка примеров (интеграционные тесты) ✅
 8. Coverage отчеты через SonarCloud ✅
 9. Избавиться от всех ворнингов в линтере
 
 ### Фаза 3 (Желательно):
 10. Dependabot ✅
-11. Type checking в CI
+11. Type checking в CI ❌ (не требуется - уже реализовано)
 
 ### Фаза 4 (Опционально):
-13. Release notes автоматизация (release-please)
-14. Security scanning
+13. Release notes автоматизация (release-please) ✅
+14. Security scanning ✅
 15. Coverage пороги (TODO: добавить когда покрытие будет достаточным)
 
 ## Решения
