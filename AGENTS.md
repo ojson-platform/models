@@ -15,6 +15,11 @@ Most of the detailed guidance has been split into focused documents under `docs/
 - `docs/AGENTS/style-and-testing.md` – style, testing, and documentation rules:
   - import organization, JSDoc style;
   - testing patterns and development workflow.
+- `docs/AGENTS/dev-infrastructure.md` – development infrastructure:
+  - build system, testing setup;
+  - code quality tools (ESLint, Prettier, SonarCloud);
+  - Git hooks, CI/CD workflows;
+  - npm scripts and project structure.
 
 Use these files as the primary reference when modifying or extending the library.
 
