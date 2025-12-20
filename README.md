@@ -154,6 +154,34 @@ This restriction ensures predictable parameter structures for models and enables
 
 Models are automatically memoized based on their `displayName` and serialized parameters. Subsequent calls with the same model and props return the cached result without recomputation.
 
+```typescript
+async function UserModel(props: {id: string}) {
+  console.log('UserModel called with id:', props.id);
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 100));
+  return {id: props.id, name: 'John Doe'};
+}
+UserModel.displayName = 'UserModel';
+
+// First call - model executes
+const user1 = await ctx.request(UserModel, {id: '123'});
+// Console: "UserModel called with id: 123"
+// Takes ~100ms
+
+// Second call with same props - returns cached result
+const user2 = await ctx.request(UserModel, {id: '123'});
+// Console: (no output - model not executed)
+// Returns immediately with cached result
+
+// Different props - model executes again
+const user3 = await ctx.request(UserModel, {id: '456'});
+// Console: "UserModel called with id: 456"
+// Takes ~100ms
+
+console.log(user1 === user2); // true (same reference)
+console.log(user1 === user3); // false (different result)
+```
+
 ## Modules
 
 This library is organized into composable modules:
