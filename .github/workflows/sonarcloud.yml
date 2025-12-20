@@ -30,14 +30,8 @@ jobs:
         run: npm run test:coverage:fast
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v5.0.0
+        uses: SonarSource/sonarqube-scan-action@v7.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: .
-          # sonar.organization is set in sonar-project.properties
-          # If needed, can be overridden here:
-          # args: >
-          #   -Dsonar.organization=your-org-name
 
