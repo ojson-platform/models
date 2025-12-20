@@ -5,7 +5,6 @@
       "package-name": "@ojson/models",
       "changelog-path": "CHANGELOG.md",
       "version-file": "package.json",
-      "release-as": "1.0.0",
       "changelog-types": [
         {"type": "feat", "section": "Features"},
         {"type": "fix", "section": "Bug Fixes"},
