@@ -2,7 +2,7 @@ name: Publish Package to npm
 
 on:
   release:
-    types: [published]
+    types: [created, published]
 
 permissions:
   contents: read
@@ -59,7 +59,14 @@ jobs:
           fi
           echo "Version check passed: $PACKAGE_VERSION"
 
+      - name: Skip if draft release
+        if: github.event.release.draft == true
+        run: |
+          echo "Skipping publish for draft release"
+          exit 0
+
       - name: Publish to npm
+        if: github.event.release.draft == false
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
