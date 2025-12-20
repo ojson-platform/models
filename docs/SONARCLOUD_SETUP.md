@@ -158,6 +158,20 @@ SonarCloud автоматически добавляет комментарии 
 sonar.exclusions=**/*.spec.ts,**/__tests__/**,build/**,examples/**
 ```
 
+### Исключение правил для конкретных файлов
+
+Если нужно исключить определенное правило для конкретного файла (например, для type tests):
+
+```properties
+# Ignore S2699 (tests without assertions) for type tests
+# Type tests validate types at compile time, not runtime, so they don't need runtime assertions
+sonar.issue.ignore.multicriteria=e1
+sonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S2699
+sonar.issue.ignore.multicriteria.e1.resourceKey=**/types.spec.ts
+```
+
+Это полезно для type tests, которые проверяют типы на этапе компиляции, а не во время выполнения.
+
 ### Настройка порогов качества
 
 В SonarCloud: **Project Settings** → **Quality Gates**
