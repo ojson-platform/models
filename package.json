@@ -45,8 +45,12 @@
     "telemetry",
     "opentelemetry"
   ],
-  "author": "",
+  "author": "ojson-platform",
   "license": "ISC",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/ojson-platform/models.git"
