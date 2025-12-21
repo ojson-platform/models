@@ -45,7 +45,11 @@
     "telemetry",
     "opentelemetry"
   ],
-  "author": "ojson-platform",
+  "author": {
+    "name": "3y3",
+    "email": "3y3@ya.ru",
+    "url": "https://github.com/3y3"
+  },
   "license": "ISC",
   "engines": {
     "node": ">=20.0.0"
