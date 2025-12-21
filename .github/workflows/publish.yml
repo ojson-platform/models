@@ -52,12 +52,14 @@ jobs:
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           RELEASE_TAG=${GITHUB_REF#refs/tags/}
-          RELEASE_VERSION=${RELEASE_TAG#v}
+          # Remove 'models-v' prefix if present, otherwise remove 'v' prefix
+          RELEASE_VERSION=${RELEASE_TAG#models-v}
+          RELEASE_VERSION=${RELEASE_VERSION#v}
           if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
-            echo "Error: package.json version ($PACKAGE_VERSION) does not match release tag ($RELEASE_VERSION)"
+            echo "Error: package.json version ($PACKAGE_VERSION) does not match release tag ($RELEASE_TAG -> $RELEASE_VERSION)"
             exit 1
           fi
-          echo "Version check passed: $PACKAGE_VERSION"
+          echo "Version check passed: $PACKAGE_VERSION (from tag $RELEASE_TAG)"
 
       - name: Skip if draft release
         if: github.event.release.draft == true
