@@ -1,4 +1,5 @@
 {
+  "tagPrefix": "v",
   "packages": {
     ".": {
       "release-type": "node",

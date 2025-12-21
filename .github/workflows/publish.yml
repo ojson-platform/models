@@ -52,9 +52,7 @@ jobs:
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           RELEASE_TAG=${GITHUB_REF#refs/tags/}
-          # Remove 'models-v' prefix if present, otherwise remove 'v' prefix
-          RELEASE_VERSION=${RELEASE_TAG#models-v}
-          RELEASE_VERSION=${RELEASE_VERSION#v}
+          RELEASE_VERSION=${RELEASE_TAG#v}
           if [ "$PACKAGE_VERSION" != "$RELEASE_VERSION" ]; then
             echo "Error: package.json version ($PACKAGE_VERSION) does not match release tag ($RELEASE_TAG -> $RELEASE_VERSION)"
             exit 1
