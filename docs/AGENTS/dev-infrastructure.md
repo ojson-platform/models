@@ -83,6 +83,11 @@ This document describes the development infrastructure setup for the project, in
 - **Coverage**: LCOV reports uploaded automatically
 - **Exclusions**: `examples/**` excluded from analysis
 - **Rules**: `typescript:S2699` (tests without assertions) excluded for `types.spec.ts`
+- **Action**: `SonarSource/sonarqube-scan-action@v7.0.0` (replaces deprecated `sonarcloud-github-action`)
+- **Secret**: `SONAR_TOKEN` required in GitHub repository settings
+- **Troubleshooting**: If coverage shows 0%, check `sonar.sources` and `sonar.exclusions` in `sonar-project.properties`
+- **Secret**: `SONAR_TOKEN` required in GitHub repository settings
+- **Troubleshooting**: If coverage shows 0%, check `sonar.sources` and `sonar.exclusions` in `sonar-project.properties`
 
 ## Git Hooks
 
@@ -282,7 +287,11 @@ The project uses **release-please** for automated releases:
 - **Formats**: text, json, html, lcov
 - **Publishing**: LCOV reports uploaded to SonarCloud
 - **Exclusions**: Test files, examples, build/, node_modules/
-- **Thresholds**: Not configured yet (TODO: add when coverage is sufficient)
+- **Thresholds**: Not configured yet (see `TODO.md`)
+- **Local viewing**: Open `coverage/index.html` in browser
+- **Note**: `test:coverage:fast` excludes examples (used in CI), `test:coverage` includes all tests
+- **Local viewing**: Open `coverage/index.html` in browser
+- **Note**: `test:coverage:fast` excludes examples (used in CI), `test:coverage` includes all tests
 
 ## Security
 
@@ -311,17 +320,8 @@ The project uses **release-please** for automated releases:
 - **Level**: Moderate and above
 - **Artifacts**: Audit results uploaded on failure
 
-## Release Process
-
-- **Status**: Manual (automation not configured yet)
-- **TODO**: Add `release-please` workflow for automated releases
-- **TODO**: Add npm publish workflow
-
 ## Known Limitations
 
 - Bundle size monitoring: Not applicable (no bundle)
-- Coverage thresholds: Not configured yet
-- Dependabot: Not configured yet
-- Release automation: Not configured yet
-- Security scanning: Only via SonarCloud (no npm audit in CI)
+- Coverage thresholds: Not configured yet (see `TODO.md`)
 
