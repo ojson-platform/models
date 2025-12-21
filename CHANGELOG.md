@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/ojson-platform/models/compare/models-v1.1.0...models-v1.1.1) (2025-12-21)
+
+
+### Bug Fixes
+
+* **sonar:** address SonarCloud issues ([87a6f91](https://github.com/ojson-platform/models/commit/87a6f91b6556d08e8d337087445031c84a381428))
+* **sonar:** fix all SonarCloud issues ([080de3e](https://github.com/ojson-platform/models/commit/080de3e402945780beacd68a46f5dc9b220baf30))
+
 ## [1.1.0](https://github.com/ojson-platform/models/compare/models-v1.0.0...models-v1.1.0) (2025-12-20)
 
 
