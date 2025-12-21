@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/ojson-platform/models/compare/models-v1.1.1...models-v1.1.2) (2025-12-21)
+
+
+### Bug Fixes
+
+* handle models-v prefix in release tag parsing ([c87cb4b](https://github.com/ojson-platform/models/commit/c87cb4bb627e7ab9985076e4b1f7e9ab9035ff42))
+
 ## [1.1.1](https://github.com/ojson-platform/models/compare/models-v1.1.0...models-v1.1.1) (2025-12-21)
 
 
