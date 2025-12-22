@@ -577,25 +577,6 @@ const user = await ctx.request(UserModel, {id: 123});
 // user is typed as UserResult
 ```
 
-## Best Practices
-
-1. **One registry per request**: Create a new registry for each request lifecycle. **Never reuse a registry across different HTTP requests** - this would cause data leakage between requests and incorrect memoization behavior. Each request must have its own isolated registry.
-
-2. **Meaningful displayNames**: Use descriptive, unique names:
-   ```typescript
-   // ✅ Good
-   RequestParams.displayName = 'RequestParams';
-   
-   // ❌ Bad
-   Model.displayName = 'm1';
-   ```
-
-3. **Keep models pure**: Models should be deterministic and side-effect free where possible
-
-4. **Use async for I/O**: Use async models for network requests, database queries, etc.
-
-5. **Use generators for complex flows**: Generators are great for multi-step operations with dependencies
-
 ## API Reference
 
 ### `withModels(registry: Map)`
@@ -685,12 +666,28 @@ if (ctx.isAlive()) {
 
 ## Best Practices
 
-- **Registry scope**: Create registry once per request lifecycle (e.g., per HTTP request). Never reuse a registry across different requests - this would cause data leakage and incorrect memoization.
-- **Model naming**: Use descriptive `displayName` values for easier debugging and cache key identification.
-- **Determinism**: Ensure models are deterministic - same inputs should always produce same outputs.
-- **Error handling**: Models should handle errors gracefully. Use `ctx.fail()` to mark context as failed.
-- **Type safety**: Use explicit type annotations for model props and return types for better type inference.
-- **Request-dependent models**: Models that depend on request data (e.g., Express `Request` parameters) should use the `ctx.set()` pattern. The model should throw an error if called directly, and its value should be set explicitly via `ctx.set()` in middleware. See [ADR 0002](../../docs/ADR/0002-ctx-set-pattern.md) for details.
+1. **Registry scope**: Create a new registry for each request lifecycle (e.g., per HTTP request). **Never reuse a registry across different HTTP requests** - this would cause data leakage between requests and incorrect memoization behavior. Each request must have its own isolated registry.
+
+2. **Model naming**: Use descriptive, unique `displayName` values for easier debugging and cache key identification:
+   ```typescript
+   // ✅ Good
+   RequestParams.displayName = 'RequestParams';
+   
+   // ❌ Bad
+   Model.displayName = 'm1';
+   ```
+
+3. **Determinism**: Keep models pure - ensure models are deterministic and side-effect free where possible. Same inputs should always produce same outputs.
+
+4. **Use async for I/O**: Use async models for network requests, database queries, and other I/O operations.
+
+5. **Use generators for complex flows**: Generators are great for multi-step operations with dependencies between steps.
+
+6. **Error handling**: Models should handle errors gracefully. Use `ctx.fail()` to mark context as failed.
+
+7. **Type safety**: Use explicit type annotations for model props and return types for better type inference and code documentation.
+
+8. **Request-dependent models**: Models that depend on request data (e.g., Express `Request` parameters) should use the `ctx.set()` pattern. The model should throw an error if called directly, and its value should be set explicitly via `ctx.set()` in middleware. See [ADR 0002](../../docs/ADR/0002-ctx-set-pattern.md) for details.
 
 **Example:**
 ```typescript
