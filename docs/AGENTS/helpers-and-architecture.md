@@ -7,8 +7,10 @@ Helpers are wrappers around a `WithModels` context. They extend the context with
 ### withCache – agent-facing notes
 
 - **Cache configuration and TTL**:
-  - `CacheConfig` has the shape `{default: {ttl: number}, 'cache-first': {ttl: number}, ...}`.
-  - `Strategy.with()` (e.g. `CacheFirst.with({ttl: 1800})`) accepts **only** the short form `{ttl: number}` and internally wraps it into a per-strategy `CacheConfig`.
+  - `CacheConfig` has the shape `{default: {ttl?: number, zip?: boolean}, 'cache-first': {ttl?: number, zip?: boolean}, ...}`.
+  - `ttl` is optional - if not specified in strategy config, uses `default.ttl`.
+  - `zip` is optional and defaults to `false`. When `true`, values are compressed using zlib deflate before storing and decompressed when reading.
+  - `Strategy.with()` (e.g. `CacheFirst.with({ttl: 1800, zip: true})`) accepts the short form `{ttl?: number, zip?: boolean}` and internally wraps it into a per-strategy `CacheConfig`.
 
 - **CacheProvider vs Cache**:
   - `CacheProvider` is the low-level storage (`get(key)`, `set(key, value, ttl)`).
