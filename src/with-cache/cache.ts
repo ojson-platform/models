@@ -6,6 +6,8 @@ import type {CacheProvider, CacheConfig} from './types';
 import {sign, has} from '../utils';
 import {InterruptedError} from '../with-models';
 
+import {setValue} from './utils';
+
 /**
  * High-level cache helper that:
  * - generates deterministic keys for models;
@@ -92,10 +94,11 @@ export class Cache implements CacheProvider {
    *
    * @param model - Model to execute
    * @param props - Model input parameters
-   * @param ttl - Time to live in seconds for the cached result
+   * @param config - Cache configuration with `ttl` and optional `zip` flag
    */
-  async update(model: Model, props: OJson, ttl: number) {
+  async update(model: Model, props: OJson, config: {ttl: number; zip?: boolean}) {
     const key = this.key(model, props);
+    const {ttl, zip = false} = config;
 
     // If update is already in progress for this key, return existing promise
     const existingUpdate = this._updates.get(key);
@@ -116,7 +119,7 @@ export class Cache implements CacheProvider {
 
         try {
           const value: Json = await ctx.request(model, props);
-          await this.set(key, value, ttl);
+          await setValue(this, key, value, ttl, zip);
         } catch (error) {
           // If execution was interrupted, don't cache
           if (error instanceof InterruptedError) {

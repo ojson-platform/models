@@ -6,7 +6,7 @@ import type {CacheConfig, CacheStrategy, WithCache} from './types';
 
 import {get} from 'lodash-es';
 
-import {isEmptyValue, getProviderName} from './utils';
+import {isEmptyValue, getProviderName, setValue, getValue} from './utils';
 
 /**
  * Function type that resolves a cache strategy into a request handler.
@@ -43,18 +43,29 @@ const Strategy = (displayName: string, call: StrategyResolver): CacheStrategy =>
  *
  * @internal
  */
-const getTTL = (strategy: CacheStrategy, config: CacheConfig) => {
-  const ttl = get(config, `${strategy.displayName}.ttl`, get(config, `default.ttl`));
+const getTTL = (displayName: string, config: CacheConfig) => {
+  const ttl = get(config, `${displayName}.ttl`, get(config, `default.ttl`));
 
   if (typeof ttl !== 'number') {
-    throw new TypeError(`TTL for "${strategy.displayName}" strategy is not configured`);
+    throw new TypeError(`TTL for "${displayName}" strategy is not configured`);
   }
 
   if (!Number.isFinite(ttl) || ttl <= 0) {
-    throw new Error(`TTL for "${strategy.displayName}" strategy must be a positive number`);
+    throw new Error(`TTL for "${displayName}" strategy must be a positive number`);
   }
 
   return ttl;
+};
+
+/**
+ * Extracts the zip flag for a strategy from the configuration.
+ * Returns `false` if not configured.
+ *
+ * @internal
+ */
+const getZip = (displayName: string, config: CacheConfig): boolean => {
+  const zip = get(config, `${displayName}.zip`, get(config, `default.zip`, false));
+  return Boolean(zip);
 };
 
 /**
@@ -73,13 +84,15 @@ const getTTL = (strategy: CacheStrategy, config: CacheConfig) => {
  * // result is undefined if not cached
  * ```
  */
-export const CacheOnly = Strategy('cache-only', (_config, cache) => {
+export const CacheOnly = Strategy('cache-only', (config, cache) => {
+  const zip = getZip('cache-only', config as CacheConfig);
   return async function (
     this: WithCache<WithModels<BaseContext>>,
     model: Model,
     props: OJson,
   ): Promise<Json | undefined> {
-    return cache.get(cache.key(model, props));
+    const key = cache.key(model, props);
+    return getValue(cache, key, zip);
   };
 });
 
@@ -120,10 +133,11 @@ export const NetworkOnly = Strategy('network-only', (_config, _cache, request) =
  * This is the most common caching strategy, providing fast responses
  * for cached data while ensuring fresh data is available when needed.
  *
- * Requires TTL configuration:
+ * Requires TTL configuration (either in strategy config or default):
  * ```typescript
  * const config = {
- *   'cache-first': { ttl: 3600 } // or use default
+ *   default: { ttl: 3600 }, // or strategy-specific
+ *   'cache-first': { ttl: 1800 }
  * };
  * ```
  *
@@ -136,10 +150,17 @@ export const NetworkOnly = Strategy('network-only', (_config, _cache, request) =
  *
  * // Second call: returns from cache
  * const result2 = await ctx.request(MyModel, { id: 123 });
+ *
+ * // With compression enabled (reduces memory usage in Redis)
+ * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800, zip: true });
+ *
+ * // Use default TTL with compression
+ * MyModel.cacheStrategy = CacheFirst.with({ zip: true });
  * ```
  */
 export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
-  const ttl = getTTL(CacheFirst as unknown as CacheStrategy, config as CacheConfig);
+  const ttl = getTTL('cache-first', config as CacheConfig);
+  const zip = getZip('cache-first', config as CacheConfig);
   const fromCache = CacheOnly(config, cache, request);
   const fromNetwork = NetworkOnly(config, cache, request);
   const providerName = getProviderName(cache.provider);
@@ -163,7 +184,7 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
         // Ignore cache set errors - background operation should not block response
-        cache.set(key, value, ttl).catch(() => {
+        setValue(cache, key, value, ttl, zip).catch(() => {
           // Cache set failures are non-critical for cache-first strategy
         });
 
@@ -202,10 +223,11 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
  * - High-traffic scenarios where freshness matters but speed is critical
  * - Data that changes infrequently but needs to stay reasonably up-to-date
  *
- * Requires TTL configuration:
+ * Requires TTL configuration (either in strategy config or default):
  * ```typescript
  * const config = {
- *   'stale-while-revalidate': { ttl: 7200 } // or use default
+ *   default: { ttl: 3600 }, // or strategy-specific
+ *   'stale-while-revalidate': { ttl: 7200 }
  * };
  * ```
  *
@@ -219,10 +241,17 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
  * // Second call: returns cached value immediately,
  * // then updates cache in background for next time
  * const result2 = await ctx.request(MyModel, { id: 123 });
+ *
+ * // With compression enabled (reduces memory usage in Redis)
+ * MyModel.cacheStrategy = StaleWhileRevalidate.with({ ttl: 3600, zip: true });
+ *
+ * // Use default TTL with compression
+ * MyModel.cacheStrategy = StaleWhileRevalidate.with({ zip: true });
  * ```
  */
 export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, cache, request) => {
-  const ttl = getTTL(StaleWhileRevalidate as unknown as CacheStrategy, config as CacheConfig);
+  const ttl = getTTL('stale-while-revalidate', config as CacheConfig);
+  const zip = getZip('stale-while-revalidate', config as CacheConfig);
   const fromCache = CacheOnly(config, cache, request);
   const fromNetwork = NetworkOnly(config, cache, request);
   const providerName = getProviderName(cache.provider);
@@ -246,7 +275,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
         // Ignore cache set errors - background operation should not block response
-        cache.set(key, value, ttl).catch(() => {
+        setValue(cache, key, value, ttl, zip).catch(() => {
           // Cache set failures are non-critical for stale-while-revalidate strategy
         });
 
@@ -268,7 +297,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
     // Background update - cache.update already handles InterruptedError internally
     if (this.shouldCache()) {
       // Ignore cache update errors - background operation should not block response
-      cache.update(model, props, ttl).catch(() => {
+      cache.update(model, props, {ttl, zip}).catch(() => {
         // Cache update failures are non-critical for stale-while-revalidate strategy
       });
       this.event('cache.update', {

@@ -24,9 +24,9 @@ describe('Cache', () => {
       model.displayName = 'model';
 
       // Start multiple parallel updates for the same model and props
-      const update1 = cache.update(model, {id: 1}, 3600);
-      const update2 = cache.update(model, {id: 1}, 3600);
-      const update3 = cache.update(model, {id: 1}, 3600);
+      const update1 = cache.update(model, {id: 1}, {ttl: 3600});
+      const update2 = cache.update(model, {id: 1}, {ttl: 3600});
+      const update3 = cache.update(model, {id: 1}, {ttl: 3600});
 
       // All promises should resolve
       await Promise.all([update1, update2, update3]);
@@ -61,9 +61,9 @@ describe('Cache', () => {
       model2.displayName = 'model2';
 
       // Start parallel updates for different models and props
-      const update1 = cache.update(model1, {id: 1}, 3600);
-      const update2 = cache.update(model1, {id: 2}, 3600);
-      const update3 = cache.update(model2, {id: 1}, 3600);
+      const update1 = cache.update(model1, {id: 1}, {ttl: 3600});
+      const update2 = cache.update(model1, {id: 2}, {ttl: 3600});
+      const update3 = cache.update(model2, {id: 1}, {ttl: 3600});
 
       // All promises should resolve
       await Promise.all([update1, update2, update3]);
@@ -91,7 +91,7 @@ describe('Cache', () => {
       model.displayName = 'model';
 
       // Update should fail with error
-      await expect(cache.update(model, {id: 1}, 3600)).rejects.toThrow('Model error');
+      await expect(cache.update(model, {id: 1}, {ttl: 3600})).rejects.toThrow('Model error');
 
       // Model was called
       expect(model).toBeCalledTimes(1);
@@ -104,7 +104,7 @@ describe('Cache', () => {
       const model2 = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
       model2.displayName = 'model';
 
-      await cache.update(model2, {id: 1}, 3600);
+      await cache.update(model2, {id: 1}, {ttl: 3600});
       expect(cacheProvider.set).toHaveBeenCalledTimes(1);
       expect(model2).toBeCalledTimes(1);
 

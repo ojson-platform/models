@@ -31,8 +31,17 @@ export type CacheProvider = {
  */
 export type CacheConfig<Name extends string = 'default'> = {
   [prop in Name]: {
-    /** Time to live (seconds). */
-    ttl: number;
+    /** Time to live (seconds). If not specified, uses `default.ttl` from cache configuration. */
+    ttl?: number;
+    /**
+     * Enable compression for cached values.
+     * When `true`, values are compressed using zlib deflate before storing
+     * and decompressed when reading. This reduces memory usage in cache providers
+     * like Redis, at the cost of CPU overhead for compression/decompression.
+     *
+     * @default false
+     */
+    zip?: boolean;
   };
 };
 
@@ -41,8 +50,8 @@ export type CacheConfig<Name extends string = 'default'> = {
  *
  * A cache strategy:
  * - Has a unique `displayName` for identification
- * - Has a `config` object with TTL settings
- * - Can be configured with custom TTL via `with()` method
+ * - Has a `config` object with TTL and optional zip settings
+ * - Can be configured with custom TTL and compression via `with()` method
  * - Resolves to a request handler function that implements the caching logic
  *
  * @example
@@ -52,6 +61,9 @@ export type CacheConfig<Name extends string = 'default'> = {
  *
  * // Use strategy with custom TTL
  * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800 });
+ *
+ * // Use strategy with compression enabled
+ * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800, zip: true });
  * ```
  */
 export type CacheStrategy = {
@@ -60,16 +72,19 @@ export type CacheStrategy = {
   /** Configuration object with TTL settings for this strategy */
   config: CacheConfig;
   /**
-   * Creates a new strategy instance with custom TTL configuration.
+   * Creates a new strategy instance with custom configuration.
    *
    * The provided config will be automatically applied to this strategy.
    *
-   * @param config - TTL configuration object `{ ttl: number }`
-   * @returns New strategy instance with the provided TTL configuration
+   * @param config - Configuration object with optional `ttl` and `zip` flag.
+   *   If `ttl` is not specified, uses `default.ttl` from cache configuration.
+   * @returns New strategy instance with the provided configuration
    *
    * @example
    * ```typescript
    * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800 }); // 30 minutes
+   * MyModel.cacheStrategy = CacheFirst.with({ zip: true }); // use default TTL with compression
+   * MyModel.cacheStrategy = CacheFirst.with({ ttl: 1800, zip: true }); // custom TTL with compression
    * ```
    */
   with(config: CacheConfig[keyof CacheConfig]): CacheStrategy;

@@ -18,21 +18,25 @@ Caching is **orthogonal** to `withModels` memoization:
 
 ### CacheConfig
 
-`CacheConfig` describes TTL (time-to-live, in seconds) per strategy:
+`CacheConfig` describes TTL (time-to-live, in seconds) and optional compression per strategy:
 
 ```ts
 type CacheConfig = {
-  default?: { ttl: number };
-  'cache-first'?: { ttl: number };
-  'network-only'?: { ttl: number };
-  'cache-only'?: { ttl: number };
-  'stale-while-revalidate'?: { ttl: number };
+  default?: { ttl?: number; zip?: boolean };
+  'cache-first'?: { ttl?: number; zip?: boolean };
+  'network-only'?: { ttl?: number; zip?: boolean };
+  'cache-only'?: { ttl?: number; zip?: boolean };
+  'stale-while-revalidate'?: { ttl?: number; zip?: boolean };
 };
 ```
 
 Rules:
 
-- Each `ttl` must be a **positive number** (`> 0`).
+- `ttl` is optional. If not specified in strategy config, uses `default.ttl`.
+  If specified, must be a **positive number** (`> 0`).
+- `zip` is optional and defaults to `false`. When `true`, values are compressed
+  using zlib deflate before storing and decompressed when reading. This reduces
+  memory usage in cache providers like Redis, at the cost of CPU overhead.
 - Strategy-specific TTL overrides `default.ttl` for that strategy.
 - If neither strategy-specific nor default TTL is set, using that strategy
   will throw an error.
@@ -101,6 +105,8 @@ import {CacheFirst, StaleWhileRevalidate} from './cache-strategy';
 
 MyModel.cacheStrategy = CacheFirst;
 OtherModel.cacheStrategy = StaleWhileRevalidate.with({ttl: 1800});
+// With compression enabled (reduces memory usage in Redis)
+CompressedModel.cacheStrategy = CacheFirst.with({ttl: 1800, zip: true});
 ```
 
 ### Interruption-aware caching
@@ -207,24 +213,30 @@ const user = await ctx.request(UserModel, {id: 123});
 
 ### Strategy.with(config)
 
-Each strategy exposes `.with({ttl})`, which creates a new instance of
-the strategy with its own TTL:
+Each strategy exposes `.with({ttl?, zip?})`, which creates a new instance of
+the strategy with its own configuration:
 
 ```ts
 import {StaleWhileRevalidate} from './with-cache/cache-strategy';
 
 MyModel.cacheStrategy = StaleWhileRevalidate.with({ttl: 1800});
+// With compression enabled, use default TTL
+CompressedModel.cacheStrategy = StaleWhileRevalidate.with({zip: true});
+// With compression and custom TTL
+CompressedModel.cacheStrategy = StaleWhileRevalidate.with({ttl: 1800, zip: true});
 ```
 
 Details:
 
-- When calling `with({ttl})` you pass the **short format**: only `{ttl: number}`.
+- When calling `with({ttl?, zip?})` you pass the **short format**: `{ttl?: number, zip?: boolean}`.
+- `ttl` is optional - if not specified, uses `default.ttl` from cache configuration.
 - Internally it is wrapped into a full `CacheConfig`
-  like `{ 'stale-while-revalidate': {ttl} }`.
-- A strategy always reads TTL from its own key first, then from
-  `default.ttl`.
+  like `{ 'stale-while-revalidate': {ttl, zip} }`.
+- A strategy always reads TTL and zip flag from its own key first, then from
+  `default.ttl` and `default.zip`.
+- Compression uses zlib deflate/inflate and base64 encoding.
 
-### Cache.update(model, props, ttl)
+### Cache.update(model, props, config)
 
 `Cache.update` is a low-level helper primarily used by the
 `StaleWhileRevalidate` strategy:
@@ -232,11 +244,16 @@ Details:
 - creates a new `Context('cache')` and wraps it with `withModels`;
 - calls `ctx.request(model, props)`;
 - if execution is **not** interrupted (no `InterruptedError`), writes the result
-  into the `CacheProvider` with the provided `ttl`;
+  into the `CacheProvider` with the provided `ttl` and optional `zip` flag;
 - memoizes parallel updates by key:
   - multiple concurrent `update` calls for the same `(model, props)`
     share a single Promise;
   - once finished, the entry in `_updates` is cleared.
+
+```ts
+await cache.update(model, {id: 1}, {ttl: 3600});
+await cache.update(model, {id: 1}, {ttl: 3600, zip: true});
+```
 
 ## API Overview
 
