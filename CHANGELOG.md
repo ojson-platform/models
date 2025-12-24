@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/ojson-platform/models/compare/models-v1.1.2...models-v1.2.0) (2025-12-24)
+
+
+### Features
+
+* **cache:** add compression support for cache strategies ([477647f](https://github.com/ojson-platform/models/commit/477647f8b0b677ba58a142100f787ca9522d8568))
+
 ## [1.1.2](https://github.com/ojson-platform/models/compare/models-v1.1.1...models-v1.1.2) (2025-12-21)
 
 
