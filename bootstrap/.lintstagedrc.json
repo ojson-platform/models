@@ -1,0 +1,11 @@
+{
+  "*.ts": [
+    "eslint --max-warnings=0 --no-warn-ignored",
+    "prettier --write"
+  ],
+  "src/**/*.spec.ts": [
+    "npm run test:units:fast"
+  ]
+}
+
+

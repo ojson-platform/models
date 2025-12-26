@@ -1,0 +1,23 @@
+{
+  "tagPrefix": "v",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "@your-scope/your-package",
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "package.json",
+      "changelog-types": [
+        {"type": "feat", "section": "Features"},
+        {"type": "fix", "section": "Bug Fixes"},
+        {"type": "perf", "section": "Performance"},
+        {"type": "refactor", "section": "Refactoring"},
+        {"type": "docs", "section": "Documentation"},
+        {"type": "chore", "section": "Chores"},
+        {"type": "revert", "section": "Reverts"}
+      ]
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}
+
+

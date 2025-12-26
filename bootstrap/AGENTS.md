@@ -1,0 +1,28 @@
+# AGENTS.md
+
+A short index for AI coding agents working on this repository.
+
+Most of the detailed guidance has been split into focused documents under `docs/AGENTS/`:
+
+- `docs/AGENTS/core.md` – core concepts:
+  - project overview;
+  - setup commands;
+  - key concepts and APIs;
+  - high-level architecture notes.
+- `docs/AGENTS/architecture.md` – architecture and design patterns:
+  - module structure;
+  - design patterns used;
+  - internal implementation details.
+- `docs/AGENTS/style-and-testing.md` – style, testing, and documentation rules:
+  - import organization, JSDoc style;
+  - testing patterns and development workflow;
+  - commit message format.
+- `docs/AGENTS/dev-infrastructure.md` – development infrastructure:
+  - build system, testing setup;
+  - code quality tools (ESLint, Prettier, SonarCloud);
+  - Git hooks, CI/CD workflows;
+  - npm scripts and project structure.
+
+Use these files as the primary reference when modifying or extending the library.
+
+

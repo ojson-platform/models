@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "./src/types.spec.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+
+
