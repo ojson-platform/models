@@ -1,0 +1,49 @@
+{
+  "repo_notes": [
+    {
+      "content": "Generate documentation primarily for the `@ojson/models` library. Prioritize: `src/**` (library code), `README.md`, `package.json`, `docs/ADR/**`, `docs/AGENTS/**`, and `examples/**`. Ignore local artifacts and generated/test-only content that does not describe the public library behavior.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Canonical user-facing documentation lives in the root `README.md` and module READMEs under `src/with-*/readme.md`. ADRs under `docs/ADR/**` explain key design decisions (e.g. ctx.set pattern, AsyncLocalStorage for telemetry, cache compression) and should be referenced from the relevant Explanation pages and linked as 'See also' from task-focused guides when relevant.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Organize the wiki using the Diátaxis framework: Tutorials (learning), How-to guides (tasks), Reference (API), Explanation (concepts/rationale). Avoid unnecessary duplication across pages; prefer cross-links ('See also') to the most relevant page/section when a concept is defined elsewhere.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Key constraints and gotchas to highlight: models must be deterministic; the registry must be created once per request lifecycle (never shared across HTTP requests); helper composition order is `withModels` -> (`withCache` / `withOverrides` / `withTelemetry`) -> `withDeadline`; `withTelemetry` requires NodeSDK + AsyncLocalStorage and is not supported in browsers.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Architecture principles to emphasize (keep an Explanation page similar in spirit to the previous 'Architecture and Design Patterns' wiki):\n- Composition over inheritance (wrappers progressively enhance contexts).\n- Determinism by design (models must be pure/deterministic for memoization).\n- Type safety through generics (types preserved through wrapper composition).\n- Separation of concerns (each with-* module has a single responsibility).\n- Request lifecycle isolation (registry scoped per request).\n\nAlso cover: layered caching (Registry vs CacheProvider), strict module boundaries (imports only via module `index.ts`), and key trade-offs (e.g. OJson object-only props, generator support complexity, optional cache compression). Point to existing sources in the repo: `README.md`, `docs/AGENTS/core.md`, `docs/AGENTS/helpers-and-architecture.md`, and ADRs (0002, 0003, 0007).",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Target information architecture (Diátaxis):\n- Overview (Explanation): high-level mental model and what problem the library solves.\n- Installation & Quick start (How-to): minimal steps to install and start.\n- Modules (Explanation): explain module composition order and responsibilities.\n- Module pages (Explanation) for: withModels, withCache, withTelemetry, withOverrides, withDeadline. Keep internal structure aligned with existing module READMEs under `src/with-*/readme.md`.\n- API Reference pages (Reference) MAY be created as separate pages per module when it improves navigation/search and avoids duplication. If separate reference pages exist, module pages should keep only a concise 'API overview' + links to the relevant reference page/sections.\n- Tutorials: step-by-step runnable guides (see next note).\n- How-to guides: task-focused short guides (see next note).\n- Utilities: Reference-style page for `compose`, `sign`, `has`, JSON guards, with links to Explanation pages where semantics are discussed.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Tutorials to prioritize (each should be runnable and reference concrete code in `README.md` and `examples/`):\n- First model + per-request context: registry per request, `withModels`, `displayName`, `ctx.request`, show memoization.\n- Express middleware integration + ctx.set: `ctx.set` for request-dependent models, `ctx.end()`/`ctx.fail()`.\n- Generator models and nested generators: yielded Promises, nested generators, interruption behavior.\n- Add caching with CacheFirst: TTL config, cache hit/miss.\n- Add telemetry with OpenTelemetry (NodeSDK): SDK init, filtering safe fields.\n- Add deadlines and handle interruption: `withDeadline`, `InterruptedError`, interactions.\n- Testing via withOverrides: transitive overrides and memoization on final model.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "How-to guides to prioritize (task-focused, minimal explanation, link to Explanation/Reference as needed):\n- Request-dependent models with ctx.set.\n- Implement a CacheProvider and wire it into withCache.\n- Use Stale-While-Revalidate and background Cache.update context factory.\n- Record only safe telemetry fields using `displayProps`/`displayResult`/`displayTags`.\n- Type-safe model attributes (defineModel helper): explain `defineModel(name, impl, config?)` as used in `examples/todo-api/src/model-utils.ts` and show examples from `examples/todo-api/src/models/*`.\n\nPrefer cross-links over repeating the same rationale in multiple how-to pages.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Cross-linking and duplication rules:\n- When a concept is defined in one place (e.g. determinism, registry scope, interruption), other pages should link to it instead of re-explaining in full.\n- Each page should have a small 'See also' section pointing to the most relevant related pages (e.g. withCache ↔ interruption, withTelemetry ↔ ALS constraints, ctx.set ↔ request lifecycle).\n- Accept small local repetition only when it keeps a page self-contained; avoid copy-paste blocks across many pages.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Additional behavior requirements (to reduce accidental merges and improve navigation):\n- Keep separate high-level Explanation pages (do not merge them away):\n  - 'Architecture and Design Patterns' (principles + trade-offs).\n  - 'Module composition' / 'How modules compose' (recommended order, invariants, what changes where).\n  - 'Request lifecycle & scoping' (per-request registry isolation).\n- Keep separate module pages for each helper: withModels / withCache / withTelemetry / withOverrides / withDeadline. Do not collapse multiple modules into a single generic page.\n- Each module page should include:\n  - 'When to use' + 'Common pitfalls' (short).\n  - 'API overview' (short) + links to reference pages (if they exist).\n  - 'Related tutorials' (links) + 'See also' (links to relevant concepts/ADRs).\n- Generator support: ensure there is a dedicated Tutorial (hands-on) and that module pages only link to it instead of duplicating long generator explanations.\n- defineModel: ensure there is a dedicated How-to about type-safe model attributes via `defineModel(name, impl, config?)` used in `examples/todo-api/src/model-utils.ts`.\n- Reference pages: create separate reference pages per module only when it improves navigation; avoid exploding into many micro-pages. Prefer 1 reference page per module (or a small set) over many tiny pages.",
+      "author": "Maintainers"
+    },
+    {
+      "content": "Diagrams / information structuring:\n- Use C4-style diagrams in Explanation pages where it helps readers build a system model:\n  - 'Architecture and Design Patterns': include a C4 Level 2 (Container) diagram for a typical server app using @ojson/models (App/HTTP, @ojson/models, CacheProvider/Redis, OpenTelemetry SDK/exporter/backend).\n  - Also include a C4 Level 3 (Component) diagram for the library internals: Context/BaseContext, Registry, keying (`sign`), wrapper modules (withModels/withCache/withTelemetry/withOverrides/withDeadline), and compose().\n- Use sequence/flow diagrams for key runtime flows:\n  - `ctx.request` resolution flow (memoization key, registry hit/miss, generator handling, interruption).\n  - withCache strategies flow (CacheFirst and Stale-While-Revalidate: cache hit/miss and background update).\n  - withTelemetry span lifecycle (context span + model span, props/result/error recording, parent/child).\n  - withDeadline timing flow (resolve race, kill, InterruptedError).\n- Keep diagrams lightweight and explanatory; avoid duplicating large prose blocks when a diagram can carry the concept, and link to related pages for details.",
+      "author": "Maintainers"
+    }
+  ]
+}
+
