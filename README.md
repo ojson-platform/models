@@ -1,6 +1,7 @@
 # Models
 
 [![npm version](https://img.shields.io/npm/v/@ojson/models)](https://www.npmjs.com/package/@ojson/models)
+[![DeepWiki](https://img.shields.io/badge/DeepWiki-docs-0A66C2)](https://deepwiki.com/ojson-platform/models/1-overview)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ojson-platform_models&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ojson-platform_models)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ojson-platform_models&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ojson-platform_models)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=ojson-platform_models&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=ojson-platform_models)
