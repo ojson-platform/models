@@ -54,7 +54,13 @@ describe('withValidation', () => {
     expect(model).toHaveBeenCalledTimes(1);
     expect(ctx.event).toHaveBeenCalledWith(
       'validation.failed',
-      expect.objectContaining({model: 'TestModel', count: 1}),
+      expect.objectContaining({
+        stage: 'props',
+        source: 'request',
+        validator: 'json-schema',
+        model: 'TestModel',
+        count: 1,
+      }),
     );
   });
 
@@ -97,10 +103,8 @@ describe('withValidation', () => {
     ).resolves.toEqual({ok: true});
   });
 
-  it('ctx.validate should return issues for a model', async () => {
-    const model = vi.fn(() => ({ok: true})) as unknown as Model;
-    model.displayName = 'TestModel';
-    (model as any).schemaProps = {
+  it('ctx.validate should emit event on the current context (non-strict)', async () => {
+    const schema = {
       type: 'object',
       required: ['id'],
       properties: {
@@ -108,11 +112,28 @@ describe('withValidation', () => {
       },
     };
 
-    const ctx = compose([withModels(new Map()), withValidation()])(new Context('request')) as any;
+    const parent = compose([withModels(new Map()), withValidation({strict: false})])(
+      new Context('request'),
+    ) as any;
+    const child = parent.create('child') as any;
 
-    const issues = ctx.validate(model, {id: ''});
+    parent.event = vi.fn();
+    child.event = vi.fn();
+
+    const issues = child.validate({id: ''}, schema);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({path: '$.id'});
+
+    expect(child.event).toHaveBeenCalledWith(
+      'validation.failed',
+      expect.objectContaining({
+        stage: 'manual',
+        source: 'validate',
+        validator: 'json-schema',
+        count: 1,
+      }),
+    );
+    expect(parent.event).not.toHaveBeenCalled();
   });
 
   it('should validate schemaResult and avoid returning invalid results', async () => {
@@ -128,7 +149,10 @@ describe('withValidation', () => {
       additionalProperties: false,
     };
 
-    const ctx = compose([withModels(new Map()), withValidation()])(new Context('request'));
+    const ctx = compose([withModels(new Map()), withValidation({strict: false})])(
+      new Context('request'),
+    ) as any;
+    ctx.event = vi.fn();
 
     await expect(ctx.request(model as any, {})).rejects.toBeInstanceOf(ValidationError);
     await expect(ctx.request(model as any, {})).rejects.toBeInstanceOf(ValidationError);
@@ -137,5 +161,19 @@ describe('withValidation', () => {
     // so the underlying result may still be memoized, but callers still see a
     // validation error on every request.
     expect(model).toHaveBeenCalledTimes(1);
+
+    // Even in non-strict mode, result validation still throws, but it should also emit an event.
+    expect(ctx.event).toHaveBeenCalledTimes(2);
+    expect(ctx.event).toHaveBeenNthCalledWith(
+      1,
+      'validation.failed',
+      expect.objectContaining({
+        stage: 'result',
+        source: 'request',
+        validator: 'json-schema',
+        model: 'ResultValidated',
+        count: 2,
+      }),
+    );
   });
 });

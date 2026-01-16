@@ -1,5 +1,5 @@
 import type {OJson} from '../types';
-import type {AnySchema, Schema, ValidationIssue, ValidatorKind, ZodLikeSchema} from './types';
+import type {AnySchema, Schema, ValidationIssue, Validator, ZodLikeSchema} from './types';
 
 import {createRequire} from 'node:module';
 
@@ -274,7 +274,12 @@ function validateZodLike(schema: ZodLikeSchema, value: unknown): ValidationIssue
     return [];
   }
 
-  const issues = result.error?.issues;
+  type ZodSafeParseFailure = {
+    success: false;
+    error?: {issues?: Array<{path?: unknown; message?: unknown; received?: unknown}>};
+  };
+  const failure = result as ZodSafeParseFailure;
+  const issues = failure.error?.issues;
   if (Array.isArray(issues)) {
     return issues.map(i => {
       const path =
@@ -289,19 +294,15 @@ function validateZodLike(schema: ZodLikeSchema, value: unknown): ValidationIssue
 }
 
 export function validateValueWithValidator(
-  kind: ValidatorKind,
+  validator: Validator,
   value: unknown,
   schema: AnySchema,
-  customValidator?: (value: unknown, schema: AnySchema) => ValidationIssue[],
 ): ValidationIssue[] {
-  if (kind === 'custom') {
-    if (!customValidator) {
-      return [issue('$', 'customValidator is required for validator=custom', value)];
-    }
-    return customValidator(value, schema);
+  if (typeof validator === 'function') {
+    return validator(value, schema);
   }
 
-  if (kind === 'zod') {
+  if (validator === 'zod') {
     return validateZodLike(schema as ZodLikeSchema, value);
   }
 
@@ -310,11 +311,10 @@ export function validateValueWithValidator(
 }
 
 export function validatePropsWithValidator(
-  kind: ValidatorKind,
+  validator: Validator,
   props: OJson,
   schema: AnySchema,
-  customValidator?: (value: unknown, schema: AnySchema) => ValidationIssue[],
 ): ValidationIssue[] {
   const cleaned = cleanUndefined(props);
-  return validateValueWithValidator(kind, cleaned, schema, customValidator);
+  return validateValueWithValidator(validator, cleaned, schema);
 }

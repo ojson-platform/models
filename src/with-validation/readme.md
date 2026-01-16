@@ -88,14 +88,30 @@ const user = await ctx.request(GetUser, {id: 'user-123'});
 Wraps a `WithModels` context and intercepts `ctx.request()` to validate props
 for models that declare `model.schemaProps`.
 
-### `ctx.validate(model, props)`
+### `ctx.validate(value, schema)`
 
-Returns validation issues (empty array means valid).
+Validates an arbitrary value against a provided schema using the context's configured validator.
+
+- Returns validation issues (empty array means valid)
+- Emits `validation.failed` (on the current context) when issues are found
+- Throws `ValidationError` when `strict: true`
 
 ### Events
 
 - `validation.failed` is emitted when `schemaProps` validation fails.
-- `validation.result_failed` is emitted when `schemaResult` validation fails.
+- `validation.failed` is emitted when `schemaResult` validation fails.
+
+The `validation.failed` event uses the following payload shape:
+
+```ts
+{
+  stage: 'props' | 'result' | 'manual';
+  source: 'request' | 'validate';
+  validator: 'json-schema' | 'zod' | 'custom';
+  count: number;
+  model?: string;
+}
+```
 
 ### `ValidationError`
 
@@ -110,8 +126,8 @@ of issues.
 const wrap = compose([
   withModels(new Map()),
   withValidation({
-    validator: 'custom',
-    customValidator(props, schema) {
+    validator(value) {
+      const props = value as Record<string, unknown>;
       return props['token'] ? [] : [{path: '$.token', message: 'Missing token', value: props['token']}];
     },
   }),
@@ -206,7 +222,7 @@ GetUser.schemaResult = z.object({
 });
 ```
 
-If result validation fails, `withValidation` emits `validation.result_failed`
+If result validation fails, `withValidation` emits `validation.failed`
 and (when `strict: true`) throws `ValidationError`.
 
 #### Notes and limitations
@@ -215,7 +231,7 @@ and (when `strict: true`) throws `ValidationError`.
   interpreted as Zod-like for all models on that context. If you need a mix of
   JSON-schema subset and Zod in the same app, prefer:
   - separate contexts (different wrap chains), or
-  - `validator: 'custom'` and dispatch based on schema shape.
+  - a custom `validator` function and dispatch based on schema shape.
 - **Error mapping**: Zod errors are mapped to `ValidationIssue` with `path` like
   `$.field.subfield` and `message` from Zod. The `value` field is best-effort
   (Zod does not always provide the invalid value per issue).

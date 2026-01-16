@@ -5,11 +5,12 @@ import type {
   AnySchema,
   ValidationConfig,
   ValidationIssue,
+  ValidationEventValidator,
+  Validator,
   WithValidation,
-  ValidatorKind,
 } from './types';
 
-import {cleanUndefined} from '../utils';
+import {cleanUndefined, isJson} from '../utils';
 
 import {ValidationError} from './types';
 import {validatePropsWithValidator, validateValueWithValidator} from './utils';
@@ -18,8 +19,7 @@ const __ValidationConfig__ = Symbol('ValidationConfig');
 
 type InternalConfig = {
   strict: boolean;
-  validator: ValidatorKind;
-  customValidator?: (value: unknown, schema: AnySchema) => ValidationIssue[];
+  validator: Validator;
 };
 
 type ModelMeta = {
@@ -42,6 +42,10 @@ function getModelDisplayName(model: Model): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
+function getValidatorKind(validator: Validator): ValidationEventValidator {
+  return typeof validator === 'function' ? 'custom' : validator;
+}
+
 function validateModelProps(
   config: InternalConfig,
   model: Model,
@@ -52,7 +56,7 @@ function validateModelProps(
     return [];
   }
   const cleanedProps = cleanUndefined((props ?? {}) as OJson);
-  return validatePropsWithValidator(config.validator, cleanedProps, schema, config.customValidator);
+  return validatePropsWithValidator(config.validator, cleanedProps, schema);
 }
 
 function validateModelResult(
@@ -64,7 +68,7 @@ function validateModelResult(
   if (!schemaResult) {
     return [];
   }
-  return validateValueWithValidator(config.validator, result, schemaResult, config.customValidator);
+  return validateValueWithValidator(config.validator, result, schemaResult);
 }
 
 function wrapRequest(request: WithModels<BaseContext>['request'], config: InternalConfig) {
@@ -76,6 +80,9 @@ function wrapRequest(request: WithModels<BaseContext>['request'], config: Intern
     const errors = validateModelProps(config, model, props);
     if (errors.length > 0) {
       this.event?.('validation.failed', {
+        stage: 'props',
+        source: 'request',
+        validator: getValidatorKind(config.validator),
         model: getModelDisplayName(model),
         count: errors.length,
       });
@@ -88,14 +95,15 @@ function wrapRequest(request: WithModels<BaseContext>['request'], config: Intern
 
     const resultIssues = validateModelResult(config, model, result);
     if (resultIssues.length > 0) {
-      this.event?.('validation.result_failed', {
+      this.event?.('validation.failed', {
+        stage: 'result',
+        source: 'request',
+        validator: getValidatorKind(config.validator),
         model: getModelDisplayName(model),
         count: resultIssues.length,
       });
-      if (config.strict) {
-        // Throw on invalid results so callers never observe invalid data.
-        throw new ValidationError(resultIssues, 'Result validation failed');
-      }
+      // Always throw on invalid results so callers never observe invalid data.
+      throw new ValidationError(resultIssues, 'Result validation failed');
     }
 
     return result;
@@ -111,12 +119,24 @@ function wrapCreate(create: WithModels<BaseContext>['create'], config: InternalC
 function wrapContext(ctx: WithModels<BaseContext>, config: InternalConfig) {
   Object.assign(ctx, {
     [__ValidationConfig__]: config,
-    validate(model: Model, props: OJson) {
-      const schema = getSchema(model);
-      if (!schema) {
-        return [] as ValidationIssue[];
+    validate(this: WithValidation<WithModels<BaseContext>>, value: unknown, schema: AnySchema) {
+      const cleaned = isJson(value) ? cleanUndefined(value) : value;
+      const issues = validateValueWithValidator(config.validator, cleaned, schema);
+
+      if (issues.length > 0) {
+        this.event?.('validation.failed', {
+          stage: 'manual',
+          source: 'validate',
+          validator: getValidatorKind(config.validator),
+          count: issues.length,
+        });
+
+        if (config.strict) {
+          throw new ValidationError(issues);
+        }
       }
-      return validatePropsWithValidator(config.validator, props, schema, config.customValidator);
+
+      return issues;
     },
     request: wrapRequest(ctx.request, config),
     create: wrapCreate(ctx.create, config),
@@ -128,8 +148,7 @@ function wrapContext(ctx: WithModels<BaseContext>, config: InternalConfig) {
 export function withValidation(config?: ValidationConfig) {
   const internal: InternalConfig = {
     strict: config?.strict ?? true,
-    validator: (config?.validator ?? 'json-schema') as ValidatorKind,
-    customValidator: config?.customValidator,
+    validator: config?.validator ?? 'json-schema',
   };
 
   return function (ctx: WithModels<BaseContext>) {

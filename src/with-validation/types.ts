@@ -34,9 +34,7 @@ export type PrimitiveSchema = {
 export type Schema = ValidationSchema | PrimitiveSchema;
 
 export type ZodLikeSchema = {
-  safeParse(
-    value: unknown,
-  ):
+  safeParse(value: unknown):
     | {success: true; data: unknown}
     | {
         success: false;
@@ -52,6 +50,18 @@ export type ValidationIssue = {
   value: unknown;
 };
 
+export type ValidationEventStage = 'props' | 'result' | 'manual';
+export type ValidationEventSource = 'request' | 'validate';
+export type ValidationEventValidator = 'json-schema' | 'zod' | 'custom';
+
+export type ValidationEvent = {
+  stage: ValidationEventStage;
+  source: ValidationEventSource;
+  validator: ValidationEventValidator;
+  count: number;
+  model?: string;
+};
+
 export class ValidationError extends Error {
   constructor(
     public errors: ValidationIssue[],
@@ -62,7 +72,10 @@ export class ValidationError extends Error {
   }
 }
 
-export type ValidatorKind = 'json-schema' | 'zod' | 'custom';
+export type Validator =
+  | 'json-schema'
+  | 'zod'
+  | ((value: unknown, schema: AnySchema) => ValidationIssue[]);
 
 export type ValidationConfig = {
   /**
@@ -78,13 +91,9 @@ export type ValidationConfig = {
    *
    * - json-schema: built-in minimal schema validator (default)
    * - zod: duck-typed support for schemas exposing `safeParse`
-   * - custom: use `customValidator`
+   * - (value, schema) => issues: custom validator function
    */
-  validator?: ValidatorKind;
-  /**
-   * Custom validation function. Used when `validator === 'custom'`.
-   */
-  customValidator?: (value: unknown, schema: AnySchema) => ValidationIssue[];
+  validator?: Validator;
 };
 
 /**
@@ -111,7 +120,7 @@ export type WithValidationConfig = {
 export type ModelWithValidation<Props extends OJson, Result extends Json> = Model<Props, Result> &
   WithValidationConfig;
 
-export type ValidateFn = (model: Model, props: OJson) => ValidationIssue[];
+export type ValidateFn = (value: unknown, schema: AnySchema) => ValidationIssue[];
 
 /**
  * Context extended with validation helpers.
@@ -121,5 +130,9 @@ export type ValidateFn = (model: Model, props: OJson) => ValidationIssue[];
  */
 export type WithValidation<T extends WithModels<BaseContext>> = Omit<T, 'create'> & {
   validate: ValidateFn;
+  event: {
+    (name: 'validation.failed', attributes: ValidationEvent): void;
+    (name: string, attributes?: Record<string, unknown>): void;
+  };
   create(...args: Parameters<T['create']>): WithValidation<T>;
 } & T;
