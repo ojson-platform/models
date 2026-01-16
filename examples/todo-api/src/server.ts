@@ -18,6 +18,14 @@ import {
 import {NotFoundError, BadRequestError} from './errors';
 import {initTelemetry} from './telemetry';
 
+function isValidationError(err: unknown): err is {errors: unknown[]} {
+  if (!err || typeof err !== 'object') {
+    return false;
+  }
+  const anyErr = err as any;
+  return anyErr.name === 'ValidationError' && Array.isArray(anyErr.errors);
+}
+
 // Расширяем глобальный тип Express Request через declaration merging
 declare global {
   namespace Express {
@@ -72,8 +80,7 @@ app.get('/api/todos', asyncHandler(async (req: Request, res: Response) => {
 // GET /api/todos/:id - получить один todo
 app.get('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
   // Получаем параметры запроса через модель
-  const params = await req.ctx.request(RequestParams);
-  const todo = await req.ctx.request(GetTodo, {id: params.params.id});
+  const todo = await req.ctx.request(GetTodo, {id: req.params.id});
   
   if (!todo) {
     throw new NotFoundError('Todo not found');
@@ -86,11 +93,7 @@ app.get('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
 app.post('/api/todos', asyncHandler(async (req: Request, res: Response) => {
   const params = await req.ctx.request(RequestParams);
   const body = params.body as {title: string; description?: string};
-  
-  if (!body.title) {
-    throw new BadRequestError('Title is required');
-  }
-  
+
   const createProps: {title: string; description?: string} = {
     title: body.title,
   };
@@ -107,7 +110,7 @@ app.post('/api/todos', asyncHandler(async (req: Request, res: Response) => {
 app.put('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
   const params = await req.ctx.request(RequestParams);
   const body = params.body as {title?: string; description?: string; completed?: boolean};
-  const id = params.params.id;
+  const id = req.params.id;
   
   const todo = await req.ctx.request(UpdateTodo, {
     id,
@@ -123,8 +126,7 @@ app.put('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE /api/todos/:id - удалить todo
 app.delete('/api/todos/:id', asyncHandler(async (req: Request, res: Response) => {
-  const params = await req.ctx.request(RequestParams);
-  const deleted = await req.ctx.request(DeleteTodo, {id: params.params.id});
+  const deleted = await req.ctx.request(DeleteTodo, {id: req.params.id});
   
   if (!deleted) {
     throw new NotFoundError('Todo not found');
@@ -135,11 +137,16 @@ app.delete('/api/todos/:id', asyncHandler(async (req: Request, res: Response) =>
 
 // Обработка ошибок
 app.use((err: Error, req: Request, res: Response, next: any) => {
-  req.ctx.fail(err);
+  const ctx = (req as any).ctx as {fail?: (e: unknown) => void} | undefined;
+  if (typeof ctx?.fail === 'function') {
+    ctx.fail(err);
+  }
 
   switch (true) {
     case err instanceof InterruptedError:
       return res.status(503).json({error: 'Service unavailable'});
+    case isValidationError(err):
+      return res.status(400).json({error: 'Validation failed', errors: (err as any).errors});
     case err instanceof NotFoundError:
       return res.status(404).json({error: err.message});
     case err instanceof BadRequestError:

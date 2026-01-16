@@ -12,6 +12,10 @@ export const GetAllTodos = defineModel(
     return todoStore.getAll();
   },
   {
+    schemaProps: {
+      type: 'object',
+      additionalProperties: false,
+    },
     displayResult: '*',
     displayTags: {
       provider: 'test',

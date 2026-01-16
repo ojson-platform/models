@@ -1,4 +1,4 @@
-import type {WithTelemetryConfig, WithCacheConfig} from '@ojson/models';
+import type {WithTelemetryConfig, WithCacheConfig, WithValidationConfig} from '@ojson/models';
 
 /**
  * Configuration for model properties (excluding displayName which is passed separately).
@@ -6,6 +6,7 @@ import type {WithTelemetryConfig, WithCacheConfig} from '@ojson/models';
  * Internal type used only within defineModel.
  */
 type ModelConfig = WithTelemetryConfig & WithCacheConfig;
+type ExtendedModelConfig = ModelConfig & WithValidationConfig;
 
 /**
  * Helper function to define a model with type checking.
@@ -36,12 +37,12 @@ export function defineModel<
 >(
   name: string,
   impl: M,
-  config?: ModelConfig
-): M & WithTelemetryConfig & WithCacheConfig & {displayName: string} {
+  config?: ExtendedModelConfig
+): M & WithTelemetryConfig & WithCacheConfig & WithValidationConfig & {displayName: string} {
   Object.assign(impl, {
     displayName: name,
     ...config,
   });
-  return impl as M & WithTelemetryConfig & WithCacheConfig & {displayName: string};
+  return impl as M & WithTelemetryConfig & WithCacheConfig & WithValidationConfig & {displayName: string};
 }
 

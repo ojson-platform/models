@@ -6,4 +6,5 @@ export * from './with-cache';
 export * from './with-overrides';
 export * from './with-telemetry';
 export * from './with-deadline';
+export * from './with-validation';
 export {compose} from './utils';

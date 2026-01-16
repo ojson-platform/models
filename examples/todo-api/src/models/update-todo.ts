@@ -25,6 +25,25 @@ export const UpdateTodo = defineModel(
     
     const todo = todoStore.update(props.id, props.updates);
     return todo || null;
+  },
+  {
+    schemaProps: {
+      type: 'object',
+      required: ['id', 'updates'],
+      properties: {
+        id: {type: 'string', minLength: 1},
+        updates: {
+          type: 'object',
+          properties: {
+            title: {type: 'string', minLength: 1, maxLength: 200},
+            description: {type: 'string', minLength: 1, maxLength: 2000},
+            completed: {type: 'boolean'},
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    },
   }
 );
 

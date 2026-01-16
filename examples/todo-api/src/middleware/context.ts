@@ -1,12 +1,12 @@
 import type {Request, Response} from 'express';
-import {Context, withModels, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type Key, type Registry} from '@ojson/models';
+import {Context, withModels, withValidation, withDeadline, withTelemetry, compose, type WithModels, type WithTelemetry, type WithValidation, type Key, type Registry} from '@ojson/models';
 import {RequestParams, type ExpressRequestParams} from '../models';
 
 /**
  * Тип расширенного контекста после применения всех обёрток
  * Включает withModels, withTelemetry, и withDeadline
  */
-export type RequestContext = WithTelemetry<WithModels<Context>>;
+export type RequestContext = WithTelemetry<WithValidation<WithModels<Context>>>;
 
 /**
  * Middleware для создания контекста с models.
@@ -24,6 +24,7 @@ export function contextMiddleware(req: Request, res: Response, next: () => void)
 
   const wrap = compose([
     withModels(registry),
+    withValidation(),
     withTelemetry({serviceName: 'todo-api'}),
     withDeadline(req.deadline),
   ]);

@@ -19,6 +19,14 @@ export const GetTodo = defineModel(
     return todo || null;
   },
   {
+    schemaProps: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: {type: 'string', minLength: 1},
+      },
+      additionalProperties: false,
+    },
     displayProps: {id: true},
     displayResult: '*',
     displayTags: {

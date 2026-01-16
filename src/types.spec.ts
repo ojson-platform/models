@@ -3,6 +3,7 @@ import type {BaseContext} from './context';
 import type {WithModels} from './with-models';
 import type {WithTelemetry, WithTelemetryConfig} from './with-telemetry';
 import type {WithCache, WithCacheConfig, CacheStrategy} from './with-cache';
+import type {WithValidationConfig, ValidationSchema} from './with-validation';
 import type {Equal, Expect} from './__tests__/type-tests-helpers';
 
 import {describe, it} from 'vitest';
@@ -588,6 +589,57 @@ describe('Type Tests', () => {
 
       // @ts-expect-error - invalidProperty does not exist on Model type
       typedModel.invalidProperty = 'test';
+    });
+  });
+
+  describe('WithValidationConfig helper type', () => {
+    it('should allow using schema when model is typed with WithValidationConfig', () => {
+      function TestModel(_props: {id: string}): Promise<Todo | null> {
+        return Promise.resolve(null);
+      }
+      TestModel.displayName = 'TestModel';
+
+      const typedModel = TestModel as typeof TestModel & WithValidationConfig;
+
+      typedModel.schemaProps = {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: {type: 'string', minLength: 1},
+        },
+        additionalProperties: false,
+      };
+
+      void (null as typeof typedModel.schemaProps);
+    });
+
+    it('should reject invalid schema types', () => {
+      function TestModel(_props: {id: string}): Promise<Todo | null> {
+        return Promise.resolve(null);
+      }
+      TestModel.displayName = 'TestModel';
+
+      const typedModel = TestModel as typeof TestModel & WithValidationConfig;
+
+      // @ts-expect-error - primitive type must be one of supported literals
+      typedModel.schemaProps = {type: 'object', properties: {id: {type: 'invalid'}}};
+    });
+
+    it('should allow generic ValidationSchema with typed required keys', () => {
+      type Props = {id: string; name?: string} & OJson;
+      const schema: ValidationSchema<Props> = {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: {type: 'string', minLength: 1},
+          name: {type: 'string', minLength: 1},
+        },
+      };
+
+      void schema;
+
+      // Note: Props extends OJson which has an index signature, so `required` cannot be
+      // strictly limited to known keys at compile time.
     });
   });
 

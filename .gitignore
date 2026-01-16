@@ -2,3 +2,6 @@
 node_modules
 build
 coverage
+diplodoc
+shvey
+.npm-cache

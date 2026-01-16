@@ -17,6 +17,16 @@ export const DeleteTodo = defineModel(
     await new Promise(resolve => setTimeout(resolve, 10));
     
     return todoStore.delete(props.id);
+  },
+  {
+    schemaProps: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: {type: 'string', minLength: 1},
+      },
+      additionalProperties: false,
+    },
   }
 );
 

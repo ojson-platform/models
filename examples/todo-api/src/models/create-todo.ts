@@ -37,6 +37,15 @@ export const CreateTodo = defineModel(
     return todoStore.create(createData);
   },
   {
+    schemaProps: {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: {type: 'string', minLength: 1, maxLength: 200},
+        description: {type: 'string', minLength: 1, maxLength: 2000},
+      },
+      additionalProperties: false,
+    },
     displayTags: {
       provider: 'test',
     },
