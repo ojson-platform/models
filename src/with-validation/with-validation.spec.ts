@@ -136,7 +136,7 @@ describe('withValidation', () => {
     expect(parent.event).not.toHaveBeenCalled();
   });
 
-  it('should validate schemaResult and avoid returning invalid results', async () => {
+  it('should emit event for invalid schemaResult in non-strict mode', async () => {
     const model = vi.fn(() => ({ok: true})) as unknown as Model;
     model.displayName = 'ResultValidated';
     (model as any).schemaProps = {type: 'object'};
@@ -154,15 +154,13 @@ describe('withValidation', () => {
     ) as any;
     ctx.event = vi.fn();
 
-    await expect(ctx.request(model as any, {})).rejects.toBeInstanceOf(ValidationError);
-    await expect(ctx.request(model as any, {})).rejects.toBeInstanceOf(ValidationError);
+    await expect(ctx.request(model as any, {})).resolves.toEqual({ok: true});
+    await expect(ctx.request(model as any, {})).resolves.toEqual({ok: true});
 
     // Note: result validation happens after `withModels` has executed the model,
-    // so the underlying result may still be memoized, but callers still see a
-    // validation error on every request.
+    // so the underlying result may still be memoized, but we still emit events.
     expect(model).toHaveBeenCalledTimes(1);
 
-    // Even in non-strict mode, result validation still throws, but it should also emit an event.
     expect(ctx.event).toHaveBeenCalledTimes(2);
     expect(ctx.event).toHaveBeenNthCalledWith(
       1,
@@ -175,5 +173,66 @@ describe('withValidation', () => {
         count: 2,
       }),
     );
+  });
+
+  it('should support custom validator function', async () => {
+    const model = vi.fn(() => ({ok: true})) as unknown as Model;
+    model.displayName = 'CustomValidator';
+    (model as any).schemaProps = {
+      type: 'object',
+      required: ['token'],
+      properties: {
+        token: {type: 'string', minLength: 1},
+      },
+    };
+
+    const ctx = compose([
+      withModels(new Map()),
+      withValidation({
+        strict: false,
+        validator(value) {
+          const props = value as Record<string, unknown>;
+          return props.token
+            ? []
+            : [{path: '$.token', message: 'Missing token', value: props.token}];
+        },
+      }),
+    ])(new Context('request')) as any;
+    ctx.event = vi.fn();
+
+    await expect(ctx.request(model as any, {})).resolves.toEqual({ok: true});
+    expect(ctx.event).toHaveBeenCalledWith(
+      'validation.failed',
+      expect.objectContaining({
+        stage: 'props',
+        source: 'request',
+        validator: 'custom',
+        model: 'CustomValidator',
+        count: 1,
+      }),
+    );
+  });
+
+  it('should support zod-like schemas via safeParse', async () => {
+    const model = vi.fn(() => ({ok: true})) as unknown as Model;
+    model.displayName = 'ZodLike';
+    (model as any).schemaProps = {
+      safeParse(value: unknown) {
+        if (typeof value === 'object' && value && (value as any).id) {
+          return {success: true, data: value};
+        }
+        return {
+          success: false,
+          error: {issues: [{path: ['id'], message: 'Required', received: value}]},
+        };
+      },
+    };
+
+    const ctx = compose([withModels(new Map()), withValidation({validator: 'zod'})])(
+      new Context('request'),
+    );
+
+    await expect(ctx.request(model as any, {})).rejects.toBeInstanceOf(ValidationError);
+    await expect(ctx.request(model as any, {id: 'ok'})).resolves.toEqual({ok: true});
   });
 });

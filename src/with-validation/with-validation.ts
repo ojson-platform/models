@@ -102,8 +102,9 @@ function wrapRequest(request: WithModels<BaseContext>['request'], config: Intern
         model: getModelDisplayName(model),
         count: resultIssues.length,
       });
-      // Always throw on invalid results so callers never observe invalid data.
-      throw new ValidationError(resultIssues, 'Result validation failed');
+      if (config.strict) {
+        throw new ValidationError(resultIssues, 'Result validation failed');
+      }
     }
 
     return result;

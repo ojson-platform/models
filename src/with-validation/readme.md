@@ -26,19 +26,18 @@ If `ajv` is installed in your application, `withValidation` will prefer Ajv for
 
 ### Strict vs non-strict
 
-`ctx.request()` always throws `ValidationError` when validation fails. This keeps
-model return types stable and predictable.
+When `strict: true`, `ctx.request()` throws `ValidationError` on validation failures.
 
 For warning-only flows, set `strict: false` to emit `validation.failed` events
-and continue execution.
+and continue execution without throwing.
 
 ### Result validation (optional)
 
 Models may also declare `schemaResult` to validate the returned value. Invalid
-results throw `ValidationError` (regardless of `strict`) so that invalid results
-are not returned to callers. Note: since `withValidation` wraps `ctx.request()`
-on top of `withModels`, the model may still execute and memoize its raw result,
-but callers will consistently observe the validation error.
+results throw `ValidationError` when `strict: true`, or only emit
+`validation.failed` when `strict: false`. Note: since `withValidation` wraps
+`ctx.request()` on top of `withModels`, the model may still execute and memoize
+its raw result.
 
 ## Installation
 
