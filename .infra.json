@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "@ojson/infra",
+    "version": "1.0.0"
+  },
+  "applied": [
+    {
+      "id": "0001_add_infra_configs",
+      "appliedAt": "2026-02-18T22:17:59.920Z"
+    },
+    {
+      "id": "0003_add_agents_fragments",
+      "appliedAt": "2026-02-18T22:17:59.925Z"
+    }
+  ],
+  "lastRun": {
+    "at": "2026-02-18T22:17:59.925Z",
+    "version": "1.0.0",
+    "command": "init"
+  }
+}

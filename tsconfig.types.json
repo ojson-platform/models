@@ -4,7 +4,8 @@
     "noEmit": true
   },
   "include": [
-    "./src/types.spec.ts"
+    "./src/types.spec.ts",
+    "./src/__tests__/vitest-shim.d.ts"
   ],
   "exclude": [
     "node_modules"

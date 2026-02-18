@@ -23,3 +23,15 @@ Most of the detailed guidance has been split into focused documents under `docs/
 
 Use these files as the primary reference when modifying or extending the library.
 
+<!-- OJSON_INFRA_AGENTS:BEGIN -->
+
+## Important
+
+Additional AI agent guidance is available as fragments in the `.agents/` directory:
+
+- `.agents/core.md` — Core concepts, two modes (metapackage vs standalone), and mode detection
+- `.agents/dev-infrastructure.md` — Lint/format/test tooling and @ojson/infra usage
+
+This section is managed by `@ojson/infra` migrations. Edit content outside this block freely.
+
+<!-- OJSON_INFRA_AGENTS:END -->

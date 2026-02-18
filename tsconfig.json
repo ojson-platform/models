@@ -1,19 +1,23 @@
 {
+  "extends": "@ojson/infra/tsconfig/base",
   "compilerOptions": {
     "target": "ES2020",
     "module": "ES2020",
     "moduleResolution": "Node",
+    "lib": ["ES2020", "ES2021", "ES2022", "DOM"],
     "rewriteRelativeImportExtensions": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "outDir": "build",
+    "rootDir": "src",
     "declaration": true,
     "declarationMap": true,
     "skipLibCheck": true,
+    "strict": false,
     "plugins": [
       {
-        "transform": "./scripts/extensions.js",
+        "transform": "./node_modules/@ojson/infra/lib/transformer.mjs",
         "after": true
       }
     ]
@@ -23,6 +27,7 @@
   ],
   "exclude": [
     "**/*.spec.ts",
+    "**/__tests__/**",
     "node_modules"
   ]
 }
