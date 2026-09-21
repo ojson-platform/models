@@ -28,8 +28,8 @@ importers:
         version: 4.3.6
     devDependencies:
       '@ojson/infra':
-        specifier: ^1.0.0
-        version: 1.0.0(@types/node@25.2.3)(yaml@2.8.2)
+        specifier: ^1.0.1
+        version: 1.0.1(@types/node@25.2.3)(yaml@2.8.2)
       '@opentelemetry/context-async-hooks':
         specifier: ^2.2.0
         version: 2.5.1(@opentelemetry/api@1.9.0)
@@ -39,9 +39,6 @@ importers:
       '@types/node':
         specifier: ^25.2.3
         version: 25.2.3
-      '@vitest/coverage-v8':
-        specifier: ^3.2.4
-        version: 3.2.7(vitest@3.2.4(@types/node@25.2.3)(yaml@2.8.2))
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -330,8 +327,8 @@ packages:
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
 
-  '@ojson/infra@1.0.0':
-    resolution: {integrity: sha512-2uWhPxuzIBdUhnKVJp4k99BzLEoVAzdGWz1n6YFnHw1tFCAERb9iuawkyPyz9ndbJzff3SGO6YY4QwClectaMQ==}
+  '@ojson/infra@1.0.1':
+    resolution: {integrity: sha512-EAwoQ3LeHmNXt1YeWXP2tUEb1VE29dlC8Q7eovbeGQbCqq4Y8pT5qm7AtfqR8o4ajY7yLO+wNcqlWCZ3bPoxxA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2416,7 +2413,7 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@ojson/infra@1.0.0(@types/node@25.2.3)(yaml@2.8.2)':
+  '@ojson/infra@1.0.1(@types/node@25.2.3)(yaml@2.8.2)':
     dependencies:
       '@eslint/js': 9.39.5
       '@typescript-eslint/eslint-plugin': 8.70.1(@typescript-eslint/parser@8.70.1(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5)(typescript@5.9.3)
