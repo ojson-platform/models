@@ -16,7 +16,7 @@
     "sourceMap": true,
     "plugins": [
       {
-        "transform": "../../bootstrap/scripts/extensions.js",
+        "transform": "@ojson/infra/transformer",
         "after": true
       }
     ]

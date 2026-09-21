@@ -26,9 +26,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install root dependencies
-        run: |
-          scripts/ci-checkout-infra.sh
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build main package
         run: pnpm run build
