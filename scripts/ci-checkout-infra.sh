@@ -20,3 +20,7 @@ git init -q "$dest"
 git -C "$dest" remote add origin https://github.com/ojson-platform/infra.git
 git -C "$dest" fetch --depth 1 origin "$sha"
 git -C "$dest" checkout --detach --quiet FETCH_HEAD
+
+# The link does not install infra's own dependencies. eslint, vitest and tsc
+# resolve from that package. infra does not commit a lockfile.
+pnpm install --no-frozen-lockfile --dir "$dest"
