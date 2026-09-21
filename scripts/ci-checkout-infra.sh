@@ -22,5 +22,7 @@ git -C "$dest" fetch --depth 1 origin "$sha"
 git -C "$dest" checkout --detach --quiet FETCH_HEAD
 
 # The link does not install infra's own dependencies. eslint, vitest and tsc
-# resolve from that package. infra does not commit a lockfile.
+# resolve from that package. infra does not commit a lockfile. A flat
+# node_modules lets vitest see @vitest/coverage-v8, which is declared on infra.
+printf '%s\n' 'node-linker=hoisted' > "$dest/.npmrc"
 pnpm install --no-frozen-lockfile --dir "$dest"

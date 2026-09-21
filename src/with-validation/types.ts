@@ -73,9 +73,7 @@ export class ValidationError extends Error {
 }
 
 export type Validator =
-  | 'json-schema'
-  | 'zod'
-  | ((value: unknown, schema: AnySchema) => ValidationIssue[]);
+  'json-schema' | 'zod' | ((value: unknown, schema: AnySchema) => ValidationIssue[]);
 
 export type ValidationConfig = {
   /**

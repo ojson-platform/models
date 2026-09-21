@@ -15,8 +15,7 @@ import type {AsyncLocalStorage} from 'node:async_hooks';
  *   - `function` - Custom extractor function `(key, value) => attributeValue`
  */
 export type PropsFilter =
-  | '*'
-  | Record<string, boolean | string | ((key: string, value: unknown) => unknown)>;
+  '*' | Record<string, boolean | string | ((key: string, value: unknown) => unknown)>;
 
 /**
  * Extended model type that supports telemetry configuration.

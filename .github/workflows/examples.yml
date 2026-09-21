@@ -35,7 +35,7 @@ jobs:
 
       - name: Install example dependencies
         working-directory: examples/todo-api
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build example
         working-directory: examples/todo-api
