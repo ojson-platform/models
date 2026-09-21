@@ -1,4 +1,4 @@
-import express, {type Request, type Response, type NextFunction} from 'express';
+import express, {type Express, type Request, type Response, type NextFunction} from 'express';
 import {InterruptedError} from '@ojson/models';
 import {
   GetAllTodos,
@@ -39,7 +39,7 @@ declare global {
 // Initialize OpenTelemetry SDK before creating Express app
 initTelemetry();
 
-const app = express();
+const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
 /**

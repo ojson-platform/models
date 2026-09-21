@@ -16,7 +16,7 @@
     "sourceMap": true,
     "plugins": [
       {
-        "transform": "../../scripts/extensions.js",
+        "transform": "../../bootstrap/scripts/extensions.js",
         "after": true
       }
     ]
