@@ -9,13 +9,13 @@ This document describes the development infrastructure setup for the project, in
 ### TypeScript Compilation
 
 - **Compiler**: `tspc` (TypeScript Patched Compiler) with custom transformer plugin
-- **Build command**: `npm run build`
+- **Build command**: `pnpm run build`
 - **Output**: `build/` directory
 - **Custom transformer**: Automatically adds `.js` extensions to relative import paths for ES modules compatibility
 
 ### Type Checking
 
-- **Command**: `npm run test:types`
+- **Command**: `pnpm run test:types`
 - **Config**: `tsconfig.types.json`
 - **Purpose**: Validates TypeScript types without building
 - **Runs in**: Pre-commit hooks and CI
@@ -25,23 +25,23 @@ This document describes the development infrastructure setup for the project, in
 ### Unit Tests
 
 - **Framework**: Vitest
-- **Command**: `npm run test:units` (all tests) or `npm run test:units:fast` (excludes examples)
+- **Command**: `pnpm run test:units` (all tests) or `pnpm run test:units:fast` (excludes examples)
 - **Test files**: `**/*.spec.ts`
 - **Coverage**: `@vitest/coverage-v8` provider
-- **Coverage command**: `npm run test:coverage` or `npm run test:coverage:fast`
+- **Coverage command**: `pnpm run test:coverage` or `pnpm run test:coverage:fast`
 - **Coverage formats**: text, json, html, lcov
 - **Coverage exclusions**: test files, examples, build/, node_modules/
 
 ### Type Tests
 
-- **Command**: `npm run test:types`
+- **Command**: `pnpm run test:types`
 - **Purpose**: Validates TypeScript type constraints at compile time
 - **Location**: `src/types.spec.ts`
 - **Note**: Type tests don't have runtime assertions (excluded from SonarCloud S2699 rule)
 
 ### Integration Tests
 
-- **Command**: `npm run test:integration`
+- **Command**: `pnpm run test:integration`
 - **Location**: `examples/**/*.spec.ts`
 - **Purpose**: Tests integration with Express.js and real-world usage
 
@@ -51,7 +51,7 @@ This document describes the development infrastructure setup for the project, in
 
 - **Version**: v9 (flat config)
 - **Config**: `eslint.config.js`
-- **Command**: `npm run lint` or `npm run lint:fix`
+- **Command**: `pnpm run lint` or `pnpm run lint:fix`
 - **Plugins**:
   - `@typescript-eslint/eslint-plugin` - TypeScript rules
   - `eslint-plugin-import` - Import order validation
@@ -66,7 +66,7 @@ This document describes the development infrastructure setup for the project, in
 ### Prettier
 
 - **Config**: `.prettierrc.json`
-- **Command**: `npm run format` or `npm run format:check`
+- **Command**: `pnpm run format` or `pnpm run format:check`
 - **Settings**:
   - Single quotes
   - Trailing commas: `all`
@@ -98,8 +98,8 @@ This document describes the development infrastructure setup for the project, in
 - **Checks for `*.ts` files**:
   1. ESLint (`eslint --max-warnings=0`)
   2. Prettier (`prettier --write`)
-  3. Unit tests (`npm run test:units:fast`)
-  4. Type tests (`npm run test:types`)
+  3. Unit tests (`pnpm run test:units:fast`)
+  4. Type tests (`pnpm run test:types`)
 
 **Note**: Integration tests from `examples/` are excluded from pre-commit to keep hooks fast.
 
@@ -112,9 +112,9 @@ This document describes the development infrastructure setup for the project, in
 - **Steps**:
   1. Checkout code
   2. Setup Node.js with npm cache
-  3. Install dependencies (`npm ci`)
-  4. Run unit tests (`npm run test:units:fast`)
-  5. Run type tests (`npm run test:types`)
+  3. Install dependencies (`pnpm install --frozen-lockfile`)
+  4. Run unit tests (`pnpm run test:units:fast`)
+  5. Run type tests (`pnpm run test:types`)
 
 ### Lint Workflow (`.github/workflows/lint.yml`)
 
@@ -123,9 +123,9 @@ This document describes the development infrastructure setup for the project, in
 - **Steps**:
   1. Checkout code
   2. Setup Node.js with npm cache
-  3. Install dependencies (`npm ci`)
-  4. Run ESLint (`npm run lint`)
-  5. Check formatting (`npm run format:check`)
+  3. Install dependencies (`pnpm install --frozen-lockfile`)
+  4. Run ESLint (`pnpm run lint`)
+  5. Check formatting (`pnpm run format:check`)
 
 ### Examples Workflow (`.github/workflows/examples.yml`)
 
@@ -135,10 +135,10 @@ This document describes the development infrastructure setup for the project, in
   1. Checkout code
   2. Setup Node.js with npm cache
   3. Install root dependencies
-  4. Build main package (`npm run build`)
-  5. Install example dependencies (`npm ci` in `examples/todo-api`)
-  6. Build example (`npm run build` in `examples/todo-api`)
-  7. Run integration tests (`npm run test:integration`)
+  4. Build main package (`pnpm run build`)
+  5. Install example dependencies (`pnpm install --frozen-lockfile` in `examples/todo-api`)
+  6. Build example (`pnpm run build` in `examples/todo-api`)
+  7. Run integration tests (`pnpm run test:integration`)
 
 ### SonarCloud Workflow (`.github/workflows/sonarcloud.yml`)
 
@@ -148,8 +148,8 @@ This document describes the development infrastructure setup for the project, in
 - **Steps**:
   1. Checkout code (with `fetch-depth: 0` for better analysis)
   2. Setup Node.js with npm cache
-  3. Install dependencies (`npm ci`)
-  4. Run tests with coverage (`npm run test:coverage:fast`)
+  3. Install dependencies (`pnpm install --frozen-lockfile`)
+  4. Run tests with coverage (`pnpm run test:coverage:fast`)
   5. SonarCloud scan (uses `SONAR_TOKEN` secret)
 
 ### Security Workflow (`.github/workflows/security.yml`)
@@ -159,7 +159,7 @@ This document describes the development infrastructure setup for the project, in
 - **Steps**:
   1. Checkout code
   2. Setup Node.js with npm cache
-  3. Install dependencies (`npm ci`)
+  3. Install dependencies (`pnpm install --frozen-lockfile`)
   4. Run npm audit (`npm audit --audit-level=moderate`)
   5. Upload audit results as artifacts on failure
 
@@ -179,9 +179,9 @@ This document describes the development infrastructure setup for the project, in
 - **Steps**:
   1. Checkout code (with `fetch-depth: 0`)
   2. Setup Node.js with npm registry
-  3. Install dependencies (`npm ci`)
+  3. Install dependencies (`pnpm install --frozen-lockfile`)
   4. Run tests (`test:units:fast` + `test:types`)
-  5. Build package (`npm run build`)
+  5. Build package (`pnpm run build`)
   6. Verify build files exist
   7. Check version matches release tag
   8. Publish to npm (`npm publish --provenance --access public`)
@@ -219,29 +219,29 @@ The project uses **release-please** for automated releases:
 - `NPM_TOKEN` secret must be configured in GitHub repository settings
 - Token must have publish permissions for `@ojson/models` scope
 
-## NPM Scripts
+## Scripts
 
 ### Build
 
-- `npm run build` - Compile TypeScript to `build/`
-- `npm run prebuild` - Clean `build/` directory
+- `pnpm run build` - Compile TypeScript to `build/`
+- `pnpm run prebuild` - Clean `build/` directory
 
 ### Testing
 
-- `npm test` - Run all tests (units + types)
-- `npm run test:units` - Run all unit tests (including examples)
-- `npm run test:units:fast` - Run unit tests excluding examples
-- `npm run test:types` - Run type tests
-- `npm run test:integration` - Run integration tests from examples
-- `npm run test:coverage` - Run tests with coverage (all)
-- `npm run test:coverage:fast` - Run tests with coverage (excluding examples)
+- `pnpm test` - Run all tests (units + types)
+- `pnpm run test:units` - Run all unit tests (including examples)
+- `pnpm run test:units:fast` - Run unit tests excluding examples
+- `pnpm run test:types` - Run type tests
+- `pnpm run test:integration` - Run integration tests from examples
+- `pnpm run test:coverage` - Run tests with coverage (all)
+- `pnpm run test:coverage:fast` - Run tests with coverage (excluding examples)
 
 ### Code Quality
 
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Run ESLint with auto-fix
-- `npm run format` - Format code with Prettier
-- `npm run format:check` - Check code formatting
+- `pnpm run lint` - Run ESLint
+- `pnpm run lint:fix` - Run ESLint with auto-fix
+- `pnpm run format` - Format code with Prettier
+- `pnpm run format:check` - Check code formatting
 
 ## Project Structure
 

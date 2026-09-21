@@ -9,13 +9,13 @@ This document describes the development infrastructure setup for the project, in
 ### TypeScript Compilation
 
 - **Compiler**: `tspc` (TypeScript Patched Compiler) with custom transformer plugin
-- **Build command**: `npm run build`
+- **Build command**: `pnpm run build`
 - **Output**: `build/` directory
 - **Custom transformer**: Automatically adds `.js` extensions to relative import paths for ES modules compatibility
 
 ### Type Checking
 
-- **Command**: `npm run test:types`
+- **Command**: `pnpm run test:types`
 - **Config**: `tsconfig.types.json`
 - **Purpose**: Validates TypeScript types without building
 - **Runs in**: Pre-commit hooks and CI
@@ -25,23 +25,23 @@ This document describes the development infrastructure setup for the project, in
 ### Unit Tests
 
 - **Framework**: Vitest
-- **Command**: `npm run test:units` (all tests) or `npm run test:units:fast` (excludes examples)
+- **Command**: `pnpm run test:units` (all tests) or `pnpm run test:units:fast` (excludes examples)
 - **Test files**: `**/*.spec.ts`
 - **Coverage**: `@vitest/coverage-v8` provider
-- **Coverage command**: `npm run test:coverage` or `npm run test:coverage:fast`
+- **Coverage command**: `pnpm run test:coverage` or `pnpm run test:coverage:fast`
 - **Coverage formats**: text, json, html, lcov
 - **Coverage exclusions**: test files, examples, build/, node_modules/
 
 ### Type Tests
 
-- **Command**: `npm run test:types`
+- **Command**: `pnpm run test:types`
 - **Purpose**: Validates TypeScript type constraints at compile time
 - **Location**: `src/types.spec.ts` (if applicable)
 - **Note**: Type tests don't have runtime assertions (excluded from SonarCloud S2699 rule)
 
 ### Integration Tests
 
-- **Command**: `npm run test:integration`
+- **Command**: `pnpm run test:integration`
 - **Location**: `examples/**/*.spec.ts` (if applicable)
 - **Purpose**: Tests integration with real-world usage
 
@@ -50,14 +50,14 @@ This document describes the development infrastructure setup for the project, in
 ### ESLint
 
 - **Config**: `eslint.config.js`
-- **Command**: `npm run lint` or `npm run lint:fix`
+- **Command**: `pnpm run lint` or `pnpm run lint:fix`
 - **Rules**: TypeScript recommended + import ordering + Prettier integration
 - **Module boundaries**: Enforced via `no-restricted-imports` rule
 
 ### Prettier
 
 - **Config**: `.prettierrc.json`
-- **Command**: `npm run format` or `npm run format:check`
+- **Command**: `pnpm run format` or `pnpm run format:check`
 - **Integration**: Runs automatically via lint-staged on commit
 
 ### SonarCloud
@@ -71,7 +71,7 @@ This document describes the development infrastructure setup for the project, in
 
 ### Husky
 
-- **Setup**: `npm run prepare` (runs `husky install`)
+- **Setup**: `pnpm run prepare` (runs `husky install`)
 - **Pre-commit**: Runs `lint-staged` to lint and format staged files
 
 ### lint-staged
@@ -154,7 +154,7 @@ your-package/
 
 ### Coverage Not Showing in SonarCloud
 
-- Ensure `npm run test:coverage:fast` generates `coverage/lcov.info`
+- Ensure `pnpm run test:coverage:fast` generates `coverage/lcov.info`
 - Check that `SONAR_TOKEN` secret is set in GitHub
 - Verify `sonar-project.properties` has correct paths
 

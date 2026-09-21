@@ -18,22 +18,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install root dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build main package
-        run: npm run build
+        run: pnpm run build
 
       - name: Install example dependencies
         working-directory: examples/todo-api
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build example
         working-directory: examples/todo-api
-        run: npm run build
+        run: pnpm run build
 
       - name: Run integration tests
-        run: npm run test:integration
+        run: pnpm run test:integration
 

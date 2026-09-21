@@ -25,13 +25,13 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: npm run test:units:fast && npm run test:types
+        run: pnpm run test:units:fast && pnpm run test:types
 
       - name: Build package
-        run: npm run build
+        run: pnpm run build
 
       - name: Verify package contents
         run: |
@@ -69,7 +69,7 @@ jobs:
 
       - name: Publish to npm
         if: github.event.release.draft == false
-        run: npm publish --provenance --access public
+        run: pnpm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
