@@ -6,3 +6,4 @@ diplodoc
 shvey
 .npm-cache
 package-lock.json
+.sandcastle/
