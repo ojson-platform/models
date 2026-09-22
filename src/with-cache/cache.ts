@@ -3,7 +3,7 @@ import type {Key, Model, OJson, Json} from '../types';
 import type {WithModels} from '../with-models';
 import type {CacheProvider, CacheConfig} from './types';
 
-import {sign, has} from '../utils';
+import {has, modelIdentity} from '../utils';
 import {InterruptedError} from '../with-models';
 
 import {setValue} from './utils';
@@ -55,13 +55,16 @@ export class Cache implements CacheProvider {
   }
 
   /**
-   * Builds a deterministic key `${model.displayName};${sign(props)}`.
+   * Returns the key from Model identity.
+   * A missing or empty displayName is refused, and then there is no key.
+   * Omitted props are an empty object, so a Model named `M` has the key `M;`.
    *
-   * @param model - Model to generate key for
-   * @param props - Model input parameters
+   * @param model - Model to identify
+   * @param props - Model input parameters; omitted props are an empty object
+   * @throws {TypeError} When displayName is missing or empty
    */
-  key(model: Model, props: OJson): Key {
-    return `${model.displayName};${sign(props)}` as Key;
+  key(model: Model, props?: OJson): Key {
+    return modelIdentity(model, props).key;
   }
 
   /**
@@ -96,8 +99,9 @@ export class Cache implements CacheProvider {
    * @param props - Model input parameters
    * @param config - Cache configuration with `ttl` and optional `zip` flag
    */
-  async update(model: Model, props: OJson, config: {ttl: number; zip?: boolean}) {
-    const key = this.key(model, props);
+  async update(model: Model, props: OJson | undefined, config: {ttl: number; zip?: boolean}) {
+    // Key and props come only from Model identity, before the provider is touched.
+    const {key, props: modelProps} = modelIdentity(model, props);
     const {ttl, zip = false} = config;
 
     // If update is already in progress for this key, return existing promise
@@ -118,7 +122,7 @@ export class Cache implements CacheProvider {
         }
 
         try {
-          const value: Json = await ctx.request(model, props);
+          const value: Json = await ctx.request(model, modelProps);
           await setValue(this, key, value, ttl, zip);
         } catch (error) {
           // If execution was interrupted, don't cache
