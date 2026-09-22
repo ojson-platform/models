@@ -239,9 +239,7 @@ describe('withTelemetry', () => {
       const ctx = createContext();
       const span = getSpan(ctx)!;
       const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording')
-        .mockReturnValueOnce(true)
-        .mockReturnValueOnce(false);
+      vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
 
       ctx.end();
       expect(endSpy).toHaveBeenCalledTimes(1);
@@ -256,9 +254,7 @@ describe('withTelemetry', () => {
       const span = getSpan(ctx)!;
       const endSpy = vi.spyOn(span, 'end');
       const setStatusSpy = vi.spyOn(span, 'setStatus');
-      vi.spyOn(span, 'isRecording')
-        .mockReturnValueOnce(true)
-        .mockReturnValueOnce(false);
+      vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
 
       ctx.end();
       expect(endSpy).toHaveBeenCalledTimes(1);
