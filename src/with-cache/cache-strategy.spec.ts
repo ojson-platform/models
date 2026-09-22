@@ -15,10 +15,7 @@ describe('Strategy.with()', () => {
   let cache: TrackingCacheProvider;
 
   function context() {
-    const wrap = compose([
-      withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache),
-    ]);
+    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
     return wrap(new Context('request'));
   }
@@ -155,10 +152,7 @@ describe('Strategy.with()', () => {
   });
 
   it('should throw error when TTL is not positive', async () => {
-    const wrap = compose([
-      withModels(new Map()),
-      withCache({default: {ttl: 0}}, cache),
-    ]);
+    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 0}}, cache)]);
 
     const ctx = wrap(new Context('request'));
 
@@ -176,10 +170,7 @@ describe('Cache strategies behavior', () => {
   let cache: TrackingCacheProvider;
 
   function context() {
-    const wrap = compose([
-      withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache),
-    ]);
+    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
     return wrap(new Context('request'));
   }
@@ -613,10 +604,7 @@ describe('Cache strategies behavior', () => {
     });
 
     it('Обновление не кэширует снова без фабрики вызывающего', async () => {
-      const wrap = compose([
-        withModels(new Map()),
-        withCache({default: {ttl: 3600}}, cache),
-      ]);
+      const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
       const ctx1 = wrap(new Context('request'));
       const ctx2 = wrap(new Context('request'));
