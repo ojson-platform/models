@@ -1,5 +1,5 @@
 import type {BaseContext} from '../context';
-import type {Json, Model, OJson} from '../types';
+import type {Json, Key, Model, OJson} from '../types';
 
 import {URLSearchParams} from 'node:url';
 
@@ -248,6 +248,31 @@ export function sign(props: OJson, set?: Set<unknown>) {
     });
 
   return acc.toString();
+}
+
+/**
+ * One identity for a named Model: the key and the props the Model receives.
+ * A missing or empty displayName is refused, and then there is no key.
+ *
+ * @param model - Model whose static displayName names the identity
+ * @param props - Props for this call; omitted props are an empty object
+ * @returns Key and props with undefined values removed, including nested objects
+ * @throws {TypeError} When displayName is missing or empty
+ */
+export function modelIdentity<Props extends OJson>(
+  model: Model,
+  props?: Props,
+): {key: Key; props: Props} {
+  if (!model.displayName) {
+    throw new TypeError('Model should define static displayName property');
+  }
+
+  const cleanedProps = cleanUndefined((props ?? {}) as Props);
+
+  return {
+    key: `${model.displayName};${sign(cleanedProps)}` as Key,
+    props: cleanedProps,
+  };
 }
 
 export const displayName = (model: Model) => model.displayName;
