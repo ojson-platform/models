@@ -6,6 +6,8 @@ import type {CacheConfig, CacheStrategy, WithCache} from './types';
 
 import {get} from 'lodash-es';
 
+import {modelIdentity} from '../utils';
+
 import {isEmptyValue, getProviderName, setValue, getValue} from './utils';
 
 /**
@@ -89,7 +91,7 @@ export const CacheOnly = Strategy('cache-only', (config, cache) => {
   return async function (
     this: WithCache<WithModels<BaseContext>>,
     model: Model,
-    props: OJson,
+    props?: OJson,
   ): Promise<Json | undefined> {
     const key = cache.key(model, props);
     return getValue(cache, key, zip);
@@ -168,9 +170,10 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
   return async function (
     this: WithCache<WithModels<BaseContext>>,
     model: Model,
-    props: OJson,
+    props?: OJson,
   ): Promise<Json> {
-    const cachedResult = await fromCache.call(this, model, props);
+    const {key, props: modelProps} = modelIdentity(model, props);
+    const cachedResult = await fromCache.call(this, model, modelProps);
 
     if (isEmptyValue(cachedResult)) {
       this.event('cache.miss', {
@@ -178,8 +181,7 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
         provider: providerName,
       });
 
-      const key = cache.key(model, props);
-      const value: Json = await fromNetwork.call(this, model, props);
+      const value: Json = await fromNetwork.call(this, model, modelProps);
 
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
@@ -259,9 +261,10 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
   return async function (
     this: WithCache<WithModels<BaseContext>>,
     model: Model,
-    props: OJson,
+    props?: OJson,
   ): Promise<Json> {
-    const cachedResult = await fromCache.call(this, model, props);
+    const {key, props: modelProps} = modelIdentity(model, props);
+    const cachedResult = await fromCache.call(this, model, modelProps);
 
     if (isEmptyValue(cachedResult)) {
       this.event('cache.miss', {
@@ -269,8 +272,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
         provider: providerName,
       });
 
-      const key = cache.key(model, props);
-      const value: Json = await fromNetwork.call(this, model, props);
+      const value: Json = await fromNetwork.call(this, model, modelProps);
 
       // Cache the value if caching is enabled
       if (this.shouldCache()) {
@@ -297,7 +299,7 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
     // Background update - cache.update already handles InterruptedError internally
     if (this.shouldCache()) {
       // Ignore cache update errors - background operation should not block response
-      cache.update(model, props, {ttl, zip}).catch(() => {
+      cache.update(model, modelProps, {ttl, zip}).catch(() => {
         // Cache update failures are non-critical for stale-while-revalidate strategy
       });
       this.event('cache.update', {

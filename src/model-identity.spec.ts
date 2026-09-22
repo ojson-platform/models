@@ -222,4 +222,70 @@ describe('model-identity', () => {
     await expect(sameCtx.request(same)).resolves.toEqual({ok: true});
     expect(same).not.toHaveBeenCalled();
   });
+
+  it('Кэш не даёт идентичность Model без имени', async () => {
+    const provider = new TrackingCacheProvider();
+    const model = vi.fn(() => ({ok: true})) as unknown as WithCacheModel;
+    model.cacheStrategy = CacheFirst;
+
+    const ctx = cachedContext(provider);
+
+    await expect(ctx.request(model, {a: 1})).rejects.toThrow(
+      new TypeError('Model should define static displayName property'),
+    );
+    expect(model).not.toHaveBeenCalled();
+    expect(provider.get).not.toHaveBeenCalled();
+    expect(provider.set).not.toHaveBeenCalled();
+  });
+
+  it('Пустое имя не получает идентичность', async () => {
+    const empty = namedModel('');
+    const ctx = withModels(new Map())(new Context('request'));
+
+    await expect(ctx.request(empty, {a: 1})).rejects.toThrow(
+      new TypeError('Model should define static displayName property'),
+    );
+    expect(empty).not.toHaveBeenCalled();
+
+    const preset = namedModel('');
+
+    expect(() => ctx.set(preset, {ok: true}, {a: 1})).toThrow(
+      new TypeError('Model should define static displayName property'),
+    );
+    expect(preset).not.toHaveBeenCalled();
+
+    const provider = new TrackingCacheProvider();
+    const cached = namedModel('') as WithCacheModel;
+    cached.cacheStrategy = CacheFirst;
+
+    const cachedCtx = cachedContext(provider);
+
+    await expect(cachedCtx.request(cached, {a: 1})).rejects.toThrow(
+      new TypeError('Model should define static displayName property'),
+    );
+    expect(cached).not.toHaveBeenCalled();
+    expect(provider.get).not.toHaveBeenCalled();
+    expect(provider.set).not.toHaveBeenCalled();
+  });
+
+  it('Кэш без props берёт ключ пустого объекта', async () => {
+    const provider = new TrackingCacheProvider();
+    const seen: OJson[] = [];
+    const model = namedModel('M', props => {
+      seen.push(props);
+      return {ok: true};
+    }) as WithCacheModel;
+    model.cacheStrategy = CacheFirst;
+
+    const first = cachedContext(provider);
+    const second = cachedContext(provider);
+
+    await expect(first.request(model)).resolves.toEqual({ok: true});
+    await expect(second.request(model, {})).resolves.toEqual({ok: true});
+
+    expect(seen).toEqual([{}]);
+    expect(model).toHaveBeenCalledTimes(1);
+    expect(provider.get).toHaveBeenCalledWith('M;');
+    expect(provider.set).toHaveBeenCalledWith('M;', {ok: true}, expect.any(Number));
+  });
 });
