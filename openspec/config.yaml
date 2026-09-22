@@ -1,0 +1,16 @@
+schema: spec-driven
+
+context: |
+  @ojson/models is a TypeScript library. A change directory is openspec/changes/issue-<github-issue>/.
+  Delta specs use the sections ADDED, MODIFIED, REMOVED, and RENAMED Requirements.
+  Requirement text uses MUST or SHALL. A scenario is WHEN and THEN, observed by the caller.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

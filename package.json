@@ -28,6 +28,7 @@
     "test:coverage": "vitest --run --coverage",
     "test:coverage:fast": "vitest --run --coverage --exclude 'examples/**'",
     "test:types": "tsc -p tsconfig.types.json",
+    "openspec:validate": "openspec validate --all --strict --no-interactive",
     "test:integration": "vitest --run examples/",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
@@ -85,6 +86,7 @@
     }
   },
   "devDependencies": {
+    "@fission-ai/openspec": "1.2.0",
     "@ojson/infra": "^1.0.1",
     "@opentelemetry/context-async-hooks": "^2.2.0",
     "@opentelemetry/sdk-trace-base": "^2.2.0",

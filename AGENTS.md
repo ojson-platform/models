@@ -23,6 +23,10 @@ Most of the detailed guidance has been split into focused documents under `docs/
 
 Use these files as the primary reference when modifying or extending the library.
 
+## OpenSpec
+
+A change for GitHub issue N lives in `openspec/changes/issue-N/`. Validate specs and changes with `pnpm run openspec:validate`.
+
 <!-- OJSON_INFRA_AGENTS:BEGIN -->
 
 ## Important
