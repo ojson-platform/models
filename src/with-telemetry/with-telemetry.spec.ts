@@ -4,7 +4,7 @@ import {describe, expect, it, vi, beforeAll, afterAll} from 'vitest';
 import {SpanStatusCode, trace, context as otelContext, type Span} from '@opentelemetry/api';
 import {NodeSDK} from '@opentelemetry/sdk-node';
 
-import {Context} from '../context';
+import {Context, type BaseContext} from '../context';
 import {withModels, InterruptedError} from '../with-models';
 import {compose} from '../utils';
 
@@ -101,6 +101,139 @@ describe('withTelemetry', () => {
     return wrap(new Context('test-request'));
   }
 
+  function wrapBaseContext(base: BaseContext, serviceName = 'test-service') {
+    const registry = new Map();
+    const wrap = compose([withModels(registry), withTelemetry({serviceName})]);
+    return wrap(base as Parameters<typeof wrap>[0]);
+  }
+
+  function createBareBaseContext(name = 'test-request', parent?: BaseContext): BaseContext {
+    const self: BaseContext = {
+      name,
+      parent,
+      create(n) {
+        return createBareBaseContext(n, self);
+      },
+      end() {},
+      fail() {},
+      async call(n, action) {
+        const child = self.create(n);
+        try {
+          const result = await action(child);
+          child.end();
+          return result;
+        } catch (error) {
+          child.fail(error);
+          throw error;
+        }
+      },
+    };
+    return self;
+  }
+
+  function createBaseContextWithNumericEndTime(
+    endTime: number,
+    name = 'test-request',
+    parent?: BaseContext,
+  ): BaseContext & {readonly endTime: number} {
+    const self: BaseContext & {readonly endTime: number} = {
+      name,
+      parent,
+      endTime,
+      create(n) {
+        return createBaseContextWithNumericEndTime(endTime, n, self);
+      },
+      end() {},
+      fail() {},
+      async call(n, action) {
+        const child = self.create(n);
+        try {
+          const result = await action(child);
+          child.end();
+          return result;
+        } catch (error) {
+          child.fail(error);
+          throw error;
+        }
+      },
+    };
+    return self;
+  }
+
+  describe('span-end-at-call', () => {
+    it('End with a numeric end time', () => {
+      const callMoment = 9_000_001;
+      const staleEndTime = 1_000;
+      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+
+      const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+
+      ctx.end();
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+      expect(endSpy).toHaveBeenCalledWith(callMoment);
+      expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
+
+      vi.spyOn(Date, 'now').mockRestore();
+    });
+
+    it('Fail with a numeric end time', () => {
+      const callMoment = 9_000_002;
+      const staleEndTime = 2_000;
+      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+
+      const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+
+      ctx.fail(new Error('fail'));
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+      expect(endSpy).toHaveBeenCalledWith(callMoment);
+      expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
+
+      vi.spyOn(Date, 'now').mockRestore();
+    });
+
+    it('End with no numeric end time', () => {
+      const callMoment = 9_000_003;
+      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+
+      const ctx = wrapBaseContext(createBareBaseContext());
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+
+      ctx.end();
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+      expect(endSpy).toHaveBeenCalledWith(callMoment);
+
+      vi.spyOn(Date, 'now').mockRestore();
+    });
+
+    it('Fail with no numeric end time', () => {
+      const callMoment = 9_000_004;
+      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+
+      const ctx = wrapBaseContext(createBareBaseContext());
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+
+      ctx.fail(new Error('fail'));
+
+      expect(endSpy).toHaveBeenCalledTimes(1);
+      expect(endSpy).toHaveBeenCalledWith(callMoment);
+
+      vi.spyOn(Date, 'now').mockRestore();
+    });
+  });
+
   it('should create a span for the context', () => {
     const ctx = createContext();
     const span = getSpan(ctx);
@@ -109,6 +242,9 @@ describe('withTelemetry', () => {
   });
 
   it('should end span when context ends', () => {
+    const callMoment = 8_000_001;
+    vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+
     const ctx = createContext();
     const span = getSpan(ctx)!;
     const endSpy = vi.spyOn(span, 'end');
@@ -118,9 +254,9 @@ describe('withTelemetry', () => {
     ctx.end();
 
     expect(endSpy).toHaveBeenCalledTimes(1);
-    // endTime is set in Context.end(), so it should be defined after ctx.end()
-    expect((ctx as any).endTime).toBeDefined();
-    expect(endSpy).toHaveBeenCalledWith((ctx as any).endTime);
+    expect(endSpy).toHaveBeenCalledWith(callMoment);
+
+    vi.spyOn(Date, 'now').mockRestore();
   });
 
   it('should set span status to ERROR and record error when context fails', () => {
@@ -891,9 +1027,7 @@ describe('withTelemetry', () => {
     });
     // Should end the span
     expect(endSpy).toHaveBeenCalledTimes(1);
-    // endTime is set in Context.fail(), so it should be defined after ctx.fail()
-    expect((ctx as any).endTime).toBeDefined();
-    expect(endSpy).toHaveBeenCalledWith((ctx as any).endTime);
+    expect(endSpy.mock.calls[0][0]).toEqual(expect.any(Number));
   });
 
   it('should not set status or end span if span is not recording', () => {

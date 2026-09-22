@@ -168,9 +168,7 @@ const wrapEnd = (end: WithModels<BaseContext>['end']) =>
 
     const span = this[__Span__];
     if (span.isRecording()) {
-      // Use endTime if available (from Context class), otherwise use current time
-      const endTime = has(this, 'endTime', 'number') ? this.endTime : Date.now();
-      span.end(endTime);
+      span.end(Date.now());
     }
   };
 
@@ -194,9 +192,7 @@ const wrapFail = (fail: WithModels<BaseContext>['fail']) =>
         code: SpanStatusCode.ERROR,
         message: extractMessage(error),
       });
-      // Use endTime if available (from Context class), otherwise use current time
-      const endTime = has(this, 'endTime', 'number') ? this.endTime : Date.now();
-      span.end(endTime);
+      span.end(Date.now());
     }
   };
 
