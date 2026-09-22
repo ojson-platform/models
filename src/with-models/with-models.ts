@@ -152,7 +152,15 @@ async function request<M extends Model<any, any, any>>(
     let value: Result | undefined = undefined;
 
     if (isPromise<Result>(call)) {
-      value = (await ctx.resolve(call as Promise<Json>)) as Result;
+      try {
+        value = (await ctx.resolve(call as Promise<Json>)) as Result;
+      } catch (error) {
+        // A deadline rejects resolve after kill. That rejection is not a model result.
+        if (error instanceof InterruptedError && !ctx.isAlive()) {
+          return Dead;
+        }
+        throw error;
+      }
     } else if (
       isPlainObject(call) ||
       Array.isArray(call) ||

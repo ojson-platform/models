@@ -130,8 +130,8 @@ const wrapCall = <CTX extends WithModels<BaseContext>>(call: CTX['call']) =>
         try {
           const result = await action(child);
 
-          // Record result on the child span (model's span)
-          if (modelInfo?.displayResult) {
+          // Ask the interruption owner before recording a successful result.
+          if (modelInfo?.displayResult && child.isAlive()) {
             childSpan.addEvent('result', extractResultFields(result, modelInfo.displayResult));
           }
 
