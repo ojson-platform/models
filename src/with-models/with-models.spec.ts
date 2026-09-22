@@ -101,7 +101,7 @@ describe('withModels', () => {
     const model = vi.fn(() => ({})) as unknown as Model;
 
     await expect(() => context.request(model, {test: 1})).rejects.toThrow(
-      'Model should define static `displayName` property',
+      'Model should define static displayName property',
     );
   });
 

@@ -1,8 +1,8 @@
 import type {BaseContext} from '../context';
-import type {Key, Model, OJson, Json, Actor, ModelProps, ModelResult, ModelCtx} from '../types';
+import type {Model, Json, Actor, ModelProps, ModelResult, ModelCtx} from '../types';
 import type {Registry, WithModels} from './types';
 
-import {isGenerator, isPromise, isPlainObject, sign, cleanUndefined} from '../utils';
+import {isGenerator, isPromise, isPlainObject, sign, modelIdentity} from '../utils';
 
 import {__Registry__} from './types';
 
@@ -119,21 +119,10 @@ async function request<M extends Model<any, any, any>>(
   type Result = ModelResult<M>;
   type Ctx = ModelCtx<M>;
 
-  if (!model.displayName) {
-    throw new TypeError('Model should define static `displayName` property');
-  }
-
+  // Key and props come only from model identity. Undefined values are already
+  // removed, including nested objects, so the Model sees the same props as the key.
+  const {key, props: cleanedProps} = modelIdentity(model, props);
   const {displayName} = model;
-
-  props = props ?? ({} as Props);
-
-  // Clean undefined values from props to ensure models receive "clean" data
-  // as if it were serialized and deserialized. This prevents checks like
-  // `if ('optionalProp' in props)` from working incorrectly.
-  // Props extends OJson, so cleanUndefined returns Props
-  const cleanedProps = cleanUndefined(props);
-
-  const key = `${displayName};${sign(cleanedProps)}` as Key;
 
   if (this[__Registry__].has(key)) {
     const cached = await this[__Registry__].get(key)!;
@@ -227,15 +216,8 @@ function set<M extends Model<any, any, any>>(
   value: ModelResult<M>,
   props?: ModelProps<M>,
 ): void {
-  if (!model.displayName) {
-    throw new TypeError('Model should define static `displayName` property');
-  }
-
+  const {key, props: modelProps} = modelIdentity(model, props);
   const {displayName} = model;
-  // Clean undefined values from props to ensure consistent memoization keys
-  // props ?? {} is OJson, and cleanUndefined preserves the type
-  const modelProps = cleanUndefined((props ?? {}) as OJson);
-  const key = `${displayName};${sign(modelProps)}` as Key;
 
   if (this[__Registry__].has(key)) {
     throw new Error(
