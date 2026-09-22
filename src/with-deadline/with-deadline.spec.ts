@@ -283,4 +283,35 @@ describe('interrupted-run', () => {
       expect(modelSpans.some(span => span.span.status.code === SpanStatusCode.OK)).toBe(false);
     }
   }, 1000);
+
+  it('Scenario: Model прерывает запуск и возвращает значение', async () => {
+    const run = harness(5000);
+    const model = recordedModel(
+      'KillReturnModel',
+      async (_props: unknown, modelCtx: {kill: () => unknown}) => {
+        modelCtx.kill();
+        return {ok: true};
+      },
+    );
+
+    let delivered: unknown;
+    try {
+      delivered = await run.ctx.request(model, {});
+    } catch (error) {
+      delivered = error;
+    }
+
+    expect(delivered).toBeInstanceOf(InterruptedError);
+    expect(run.ctx.isAlive()).toBe(false);
+
+    const callsAfterFirst = model.mock.calls.length;
+    await expect(run.ctx.request(model, {})).rejects.toBeInstanceOf(InterruptedError);
+    expect(model.mock.calls.length).toBe(callsAfterFirst);
+
+    expect((run.cache.set as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+
+    const modelSpans = run.spans.filter(item => item.name === model.displayName);
+    const events = modelSpans.flatMap(item => item.span.events);
+    expect(events.filter(event => event.name === 'result')).toHaveLength(0);
+  });
 });

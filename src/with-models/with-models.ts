@@ -182,6 +182,11 @@ async function request<M extends Model<any, any, any>>(
       throw new TypeError('Unexpected model result');
     }
 
+    // Accept a result only while the owner is alive. A value returned after kill is not a success.
+    if (!ctx.isAlive()) {
+      return Dead;
+    }
+
     return value;
   }).then(result => {
     if (result === Dead) {

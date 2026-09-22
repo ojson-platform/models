@@ -183,8 +183,8 @@ export const CacheFirst = Strategy('cache-first', (config, cache, request) => {
 
       const value: Json = await fromNetwork.call(this, model, modelProps);
 
-      // Cache the value if caching is enabled
-      if (this.shouldCache()) {
+      // Cache the value if caching is enabled and the run owner is still alive.
+      if (this.shouldCache() && this.isAlive()) {
         // Ignore cache set errors - background operation should not block response
         setValue(cache, key, value, ttl, zip).catch(() => {
           // Cache set failures are non-critical for cache-first strategy
@@ -274,8 +274,8 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
 
       const value: Json = await fromNetwork.call(this, model, modelProps);
 
-      // Cache the value if caching is enabled
-      if (this.shouldCache()) {
+      // Cache the value if caching is enabled and the run owner is still alive.
+      if (this.shouldCache() && this.isAlive()) {
         // Ignore cache set errors - background operation should not block response
         setValue(cache, key, value, ttl, zip).catch(() => {
           // Cache set failures are non-critical for stale-while-revalidate strategy
@@ -296,8 +296,8 @@ export const StaleWhileRevalidate = Strategy('stale-while-revalidate', (config, 
       provider: providerName,
     });
 
-    // Background update - cache.update already handles InterruptedError internally
-    if (this.shouldCache()) {
+    // Background update of an already interrupted run does not write and does not fail the caller.
+    if (this.shouldCache() && this.isAlive()) {
       // Ignore cache update errors - background operation should not block response
       cache.update(model, modelProps, {ttl, zip}).catch(() => {
         // Cache update failures are non-critical for stale-while-revalidate strategy

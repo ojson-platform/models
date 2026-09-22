@@ -123,6 +123,10 @@ export class Cache implements CacheProvider {
 
         try {
           const value: Json = await ctx.request(model, modelProps);
+          // Ask the run owner before writing. An interrupted run is not a new cache entry.
+          if (!ctx.isAlive()) {
+            return;
+          }
           await setValue(this, key, value, ttl, zip);
         } catch (error) {
           // If execution was interrupted, don't cache
