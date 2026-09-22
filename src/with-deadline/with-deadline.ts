@@ -2,6 +2,7 @@ import type {BaseContext} from '../context';
 import type {WithModels} from '../with-models';
 
 import {wait} from '../utils';
+import {InterruptedError} from '../with-models';
 
 /**
  * Factory function that enhances a `WithModels` context with deadline support.
@@ -12,8 +13,9 @@ import {wait} from '../utils';
  *
  * Semantics:
  * - `timeout` is applied to all async operations resolved through `ctx.resolve`.
- * - On timeout, `ctx.kill()` is called, and any in-flight `ctx.request` calls
- *   will fail with `InterruptedError` according to `withModels` semantics.
+ * - On timeout, the same `ctx.kill()` the caller uses is called. The value
+ *   returned by `kill` is not the result of `resolve` or of the Model.
+ *   In-flight `ctx.request` calls fail with `InterruptedError`.
  * - `ctx.kill()` is wrapped to clear the internal timer before delegating to
  *   the original `kill`, so manual kills do not leak timers.
  *
@@ -48,7 +50,42 @@ export function withDeadline(timeout = 0) {
       clear();
       return kill.call(ctx);
     };
-    ctx.resolve = value => Promise.race([resolve.call(ctx, value), deadline.then(ctx.kill)]);
+    ctx.resolve = value => {
+      const pending = resolve.call(ctx, value);
+      // Expiration calls kill. kill's return value must not win this race.
+      const expired = deadline.then(() => {
+        ctx.kill();
+        throw new InterruptedError();
+      });
+
+      return new Promise((res, rej) => {
+        let settled = false;
+
+        pending.then(
+          result => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            res(result);
+          },
+          error => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            rej(error);
+          },
+        );
+        expired.catch(error => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          rej(error);
+        });
+      });
+    };
 
     return ctx;
   };
