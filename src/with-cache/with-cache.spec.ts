@@ -16,9 +16,7 @@ describe('withCache', () => {
   function context() {
     const wrap = compose([
       withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 3600}}, cache),
     ]);
 
     return wrap(new Context('request'));
@@ -378,9 +376,7 @@ describe('withCache', () => {
 
       const wrap = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 3600}}, cache, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 3600}}, cache),
         withCustomField,
       ]);
 
@@ -424,9 +420,7 @@ describe('withCache', () => {
 
       const wrap = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 3600}}, cache, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 3600}}, cache),
         withMetadata,
       ]);
 
@@ -453,9 +447,7 @@ describe('withCache', () => {
     it('should handle context lifecycle correctly in composed wrappers', async () => {
       const wrap = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 3600}}, cache, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 3600}}, cache),
       ]);
 
       const ctx = wrap(new Context('test'));

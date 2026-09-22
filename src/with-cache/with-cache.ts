@@ -4,6 +4,9 @@ import type {CacheConfig, CacheProvider, WithCacheModel, WithCache} from './type
 
 import {merge} from 'lodash-es';
 
+import {Context} from '../context';
+import {withModels} from '../with-models';
+
 import {Cache} from './cache';
 
 const __CacheDisabled__ = Symbol('CacheDisabled');
@@ -63,24 +66,18 @@ const wrapContext = (ctx: WithModels<BaseContext>, cache: Cache) => {
 /**
  * Enhances `WithModels<BaseContext>` with cache strategies and runtime cache controls.
  *
- * The `createBaseContext` factory is used only by `Cache.update` to build a background
- * context. If the created context has `disableCache()`, it will be called automatically
- * to prevent recursive caching.
+ * Background `Cache.update` runs use a context created inside this module with caching
+ * disabled for the model execution, so the caller does not pass a context factory.
  *
  * @param config - TTL configuration per cache strategy name
  * @param provider - Low-level cache storage implementation
- * @param createBaseContext - Factory for creating background contexts used by `cache.update`.
- *   Should create a `WithModels<BaseContext>` instance (typically via `withModels`
- *   and optional helpers like `withTelemetry`/`withDeadline`). If the factory
- *   applies `withCache`, `disableCache()` will be called automatically on the
- *   created context to prevent recursive caching.
  */
-export function withCache(
-  config: CacheConfig,
-  provider: CacheProvider,
-  createBaseContext: (name: string) => WithModels<BaseContext>,
-) {
-  const cache = new Cache(config, provider, createBaseContext);
+export function withCache(config: CacheConfig, provider: CacheProvider) {
+  const cache = new Cache(config, provider, (name: string) => {
+    const updateCtx = wrapContext(withModels(new Map())(new Context(name)), cache);
+    updateCtx.disableCache();
+    return updateCtx;
+  });
 
   return function (ctx: WithModels<BaseContext>) {
     return wrapContext(ctx, cache);

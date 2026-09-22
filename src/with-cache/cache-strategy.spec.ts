@@ -17,9 +17,7 @@ describe('Strategy.with()', () => {
   function context() {
     const wrap = compose([
       withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 3600}}, cache),
     ]);
 
     return wrap(new Context('request'));
@@ -124,9 +122,7 @@ describe('Strategy.with()', () => {
     const wrap = compose([
       withModels(new Map()),
       // No TTL configured for cache-first or default
-      withCache({} as CacheConfig, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({} as CacheConfig, cache),
     ]);
 
     const ctx = wrap(new Context('request'));
@@ -144,11 +140,7 @@ describe('Strategy.with()', () => {
     // Create context with invalid TTL type (string instead of number)
     const wrap = compose([
       withModels(new Map()),
-      withCache(
-        {default: {ttl: 'invalid' as unknown as number}} as CacheConfig,
-        cache,
-        (name: string) => withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 'invalid' as unknown as number}} as CacheConfig, cache),
     ]);
     const ctx = wrap(new Context('request'));
 
@@ -165,9 +157,7 @@ describe('Strategy.with()', () => {
   it('should throw error when TTL is not positive', async () => {
     const wrap = compose([
       withModels(new Map()),
-      withCache({default: {ttl: 0}}, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 0}}, cache),
     ]);
 
     const ctx = wrap(new Context('request'));
@@ -188,9 +178,7 @@ describe('Cache strategies behavior', () => {
   function context() {
     const wrap = compose([
       withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 3600}}, cache),
     ]);
 
     return wrap(new Context('request'));
@@ -621,6 +609,50 @@ describe('Cache strategies behavior', () => {
 
       // Final check: model called 2 times
       // 1 time on cache miss + 1 time in background update on cache hit
+      expect(model).toBeCalledTimes(2);
+    });
+
+    it('Обновление не кэширует снова без фабрики вызывающего', async () => {
+      const wrap = compose([
+        withModels(new Map()),
+        withCache({default: {ttl: 3600}}, cache),
+      ]);
+
+      const ctx1 = wrap(new Context('request'));
+      const ctx2 = wrap(new Context('request'));
+
+      let inc = 1;
+      let releaseBackgroundModel: () => void;
+      const backgroundModelGate = new Promise<void>(resolve => {
+        releaseBackgroundModel = resolve;
+      });
+
+      const model = vi.fn(async () => {
+        if (inc > 1) {
+          await backgroundModelGate;
+        }
+        return {result: inc++};
+      }) as unknown as WithCacheModel;
+
+      model.displayName = 'model';
+      model.cacheStrategy = StaleWhileRevalidate;
+
+      const cacheKey = 'model;id=1' as Key;
+
+      await ctx1.request(model, {id: 1});
+      expect(model).toBeCalledTimes(1);
+
+      const result2 = await ctx2.request(model, {id: 1});
+      expect(result2).toEqual({result: 1});
+
+      (cache.get as ReturnType<typeof vi.fn>).mockClear();
+      (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+      releaseBackgroundModel!();
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 2}, 3600);
       expect(model).toBeCalledTimes(2);
     });
 
