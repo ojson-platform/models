@@ -1,2 +1,2 @@
-- [ ] `span-end-at-call` — End with a numeric end time; Fail with a numeric end time; End with no numeric end time; Fail with no numeric end time
+- [x] `span-end-at-call` — End with a numeric end time; Fail with a numeric end time; End with no numeric end time; Fail with no numeric end time
 - [ ] `span-end-not-recording` — End after the span has stopped recording; Fail after the span has stopped recording
