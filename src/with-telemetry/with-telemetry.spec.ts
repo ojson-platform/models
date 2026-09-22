@@ -792,9 +792,7 @@ describe('withTelemetry', () => {
     const registry = new Map();
     const wrap = compose([
       withModels(registry),
-      withCache({default: {ttl: 3600}}, cache, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 3600}}, cache),
       withTelemetry({serviceName: 'test-service'}),
     ]);
 

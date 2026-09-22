@@ -99,9 +99,7 @@ describe('Type Tests', () => {
 
     const wrap = compose([
       withModels(new Map()),
-      withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-        withModels(new Map())(new Context(name)),
-      ),
+      withCache({default: {ttl: 60}}, cacheProvider),
       withTelemetry({serviceName: 'type-tests'}),
     ]);
 
@@ -300,9 +298,7 @@ describe('Type Tests', () => {
       // withCache - ctx.create() preserves types
       const wrapCache = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 60}}, cacheProvider),
       ]);
       const cacheCtx = wrapCache(new Context('cache-test'));
       const cacheChild = cacheCtx.create('child');
@@ -325,9 +321,7 @@ describe('Type Tests', () => {
 
       const wrap = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 60}}, cacheProvider),
         withTelemetry({serviceName: 'type-tests'}),
       ]);
 
@@ -377,9 +371,7 @@ describe('Type Tests', () => {
       // withCache - ctx.request() preserves model types
       const wrapCache = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 60}}, cacheProvider),
       ]);
       const cacheCtx = wrapCache(new Context('cache-test'));
       const cacheResult = cacheCtx.request(GetTodoModel, {id: '1'});
@@ -417,9 +409,7 @@ describe('Type Tests', () => {
       // withModels + withCache + withDeadline
       const wrapCacheDeadline = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 60}}, cacheProvider),
         withDeadline(5000),
       ]);
       const cacheDeadlineCtx = wrapCacheDeadline(new Context('test'));
@@ -451,9 +441,7 @@ describe('Type Tests', () => {
       // All helpers together
       const wrapAll = compose([
         withModels(new Map()),
-        withCache({default: {ttl: 60}}, cacheProvider, (name: string) =>
-          withModels(new Map())(new Context(name)),
-        ),
+        withCache({default: {ttl: 60}}, cacheProvider),
         withTelemetry({serviceName: 'test'}),
         withDeadline(5000),
       ]);
