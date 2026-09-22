@@ -14,10 +14,7 @@ describe('withCache', () => {
   let cache: TrackingCacheProvider;
 
   function context() {
-    const wrap = compose([
-      withModels(new Map()),
-      withCache({default: {ttl: 3600}}, cache),
-    ]);
+    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
     return wrap(new Context('request'));
   }
@@ -445,10 +442,7 @@ describe('withCache', () => {
     });
 
     it('should handle context lifecycle correctly in composed wrappers', async () => {
-      const wrap = compose([
-        withModels(new Map()),
-        withCache({default: {ttl: 3600}}, cache),
-      ]);
+      const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
       const ctx = wrap(new Context('test'));
 
