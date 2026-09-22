@@ -1,0 +1,94 @@
+name: Cursor review
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: read
+
+jobs:
+  review:
+    if: github.event.label.name == 'sdd:verifying'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout the workflow
+        uses: actions/checkout@v4
+
+      - name: Keep the review instructions
+        run: cp .github/cursor-review.md /tmp/cursor-review.md
+
+      - name: Find the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          n='${{ github.event.issue.number }}'
+          json=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "sdd/$n" --state open --json number,headRefOid --jq '.[0]')
+          if [ -z "$json" ] || [ "$json" = "null" ]; then
+            echo "No open pull request for sdd/$n" >&2
+            exit 1
+          fi
+          echo "number=$(jq -r .number <<<"$json")" >> "$GITHUB_OUTPUT"
+          echo "sha=$(jq -r .headRefOid <<<"$json")" >> "$GITHUB_OUTPUT"
+
+      - name: Start cursor-review
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name=cursor-review \
+            -f head_sha='${{ steps.pr.outputs.sha }}' \
+            -f status=in_progress \
+            -f started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --jq .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the pull request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Install Cursor agent
+        run: |
+          curl -fsS https://cursor.com/install | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Review the diff
+        id: agent
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          test -n "$CURSOR_API_KEY"
+          prompt=$(sed \
+            -e 's/{{ISSUE}}/${{ github.event.issue.number }}/g' \
+            -e 's/{{PR}}/${{ steps.pr.outputs.number }}/g' \
+            -e 's/{{SHA}}/${{ steps.pr.outputs.sha }}/g' \
+            /tmp/cursor-review.md)
+          agent --print --force --trust --sandbox disabled --model grok-4.7-high-fast "$prompt"
+
+      - name: Finish cursor-review
+        if: always() && steps.check.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion=success
+          if [ "${{ steps.agent.outcome }}" != "success" ]; then
+            conclusion=failure
+          fi
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/check-runs/${{ steps.check.outputs.id }}" \
+            -f status=completed \
+            -f conclusion="$conclusion" \
+            -f completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
