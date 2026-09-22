@@ -234,6 +234,42 @@ describe('withTelemetry', () => {
     });
   });
 
+  describe('span-end-not-recording', () => {
+    it('End after the span has stopped recording', () => {
+      const ctx = createContext();
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      vi.spyOn(span, 'isRecording')
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false);
+
+      ctx.end();
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      endSpy.mockClear();
+      ctx.end();
+      expect(endSpy).not.toHaveBeenCalled();
+    });
+
+    it('Fail after the span has stopped recording', () => {
+      const ctx = createContext();
+      const span = getSpan(ctx)!;
+      const endSpy = vi.spyOn(span, 'end');
+      const setStatusSpy = vi.spyOn(span, 'setStatus');
+      vi.spyOn(span, 'isRecording')
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false);
+
+      ctx.end();
+      expect(endSpy).toHaveBeenCalledTimes(1);
+
+      endSpy.mockClear();
+      ctx.fail(new Error('fail after span stopped'));
+      expect(endSpy).not.toHaveBeenCalled();
+      expect(setStatusSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it('should create a span for the context', () => {
     const ctx = createContext();
     const span = getSpan(ctx);
