@@ -53,6 +53,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm add ./remote-solver-src
+          pnpm install --dir remote-solver-src --frozen-lockfile --ignore-workspace
 
       - name: Review
         env:
