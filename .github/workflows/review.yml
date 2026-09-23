@@ -55,6 +55,11 @@ jobs:
           pnpm add ./remote-solver-src
           pnpm install --dir remote-solver-src --frozen-lockfile --ignore-workspace
 
+      - name: Install Cursor agent
+        run: |
+          curl -fsS https://cursor.com/install | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Review
         env:
           GH_TOKEN: ${{ secrets.REVIEWER_TOKEN }}
