@@ -1,0 +1,68 @@
+name: SDD review
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: sdd-review-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'sdd:accepting' &&
+       contains(github.event.issue.labels.*.name, 'sdd:auto-review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout the service
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch pull request heads
+        run: git fetch origin --prune '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Checkout remote-solver
+        uses: actions/checkout@v4
+        with:
+          repository: ojson-platform/remote-solver
+          path: remote-solver-src
+          token: ${{ secrets.REVIEWER_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm add ./remote-solver-src
+
+      - name: Review
+        env:
+          GH_TOKEN: ${{ secrets.REVIEWER_TOKEN }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test -n "$CURSOR_API_KEY"
+          mkdir -p .sandcastle
+          umask 077
+          printf 'CURSOR_API_KEY=%s\n' "$CURSOR_API_KEY" > .sandcastle/.env
+          pnpm exec remote-solver review
