@@ -60,9 +60,16 @@ jobs:
           curl -fsS https://cursor.com/install | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REMOTE_SOLVER_APP_ID }}
+          private-key: ${{ secrets.REMOTE_SOLVER_SECRET_KEY }}
+
       - name: Review
         env:
-          GH_TOKEN: ${{ secrets.REVIEWER_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
           set -euo pipefail
