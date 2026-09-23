@@ -4,8 +4,8 @@ import {describe, expect, it, vi, beforeAll, afterAll} from 'vitest';
 import {SpanStatusCode, trace, context as otelContext, type Span} from '@opentelemetry/api';
 import {NodeSDK} from '@opentelemetry/sdk-node';
 
-import {Context} from '../context';
 import type {BaseContext} from '../context';
+import {Context} from '../context';
 import {withModels, InterruptedError} from '../with-models';
 import {compose} from '../utils';
 
