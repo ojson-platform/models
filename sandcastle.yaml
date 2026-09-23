@@ -1,0 +1,5 @@
+# Comments the sandcastle machine does not treat as a person.
+comments:
+  ignore:
+    # Case-insensitive regular expression on the commenter login.
+    - author: sonarqubecloud
