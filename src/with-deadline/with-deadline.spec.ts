@@ -1,6 +1,7 @@
 import type {Model} from '../types';
 
 import {SpanStatusCode} from '@opentelemetry/api';
+import {requirement, scenario, spec} from '@ojson/spec-coverage';
 import {NodeSDK} from '@opentelemetry/sdk-node';
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest';
 
@@ -20,38 +21,6 @@ describe('withDeadline', () => {
 
     return wrap(new Context('request'));
   }
-
-  it('should resolve normally when model finishes before deadline', async () => {
-    const ctx = context(50);
-
-    const model = vi.fn(async () => {
-      return {result: 1};
-    });
-    (model as any).displayName = 'model';
-
-    const result = await ctx.request(model as any, {});
-
-    expect(result).toEqual({result: 1});
-    expect(model).toHaveBeenCalledTimes(1);
-  });
-
-  it('should kill context and return Dead when deadline is exceeded', async () => {
-    const ctx = context(5);
-
-    const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
-
-    const model = vi.fn(async () => {
-      await wait(50);
-      return {result: 1};
-    });
-    (model as any).displayName = 'slow-model';
-
-    const result = ctx.request(model as any, {});
-
-    // After deadline, context should be killed and request throws InterruptedError
-    await expect(result).rejects.toThrow(InterruptedError);
-    expect(ctx.isAlive()).toBe(false);
-  }, 200);
 
   it('should clear deadline timer when kill is called manually', async () => {
     const ctx = context(50);
@@ -76,17 +45,9 @@ describe('withDeadline', () => {
       expect(error).toBeInstanceOf(InterruptedError);
     }
   });
-
-  it('should not change ctx.kill semantics when timeout is zero', async () => {
-    const ctx = context(0);
-
-    expect(ctx.isAlive()).toBe(true);
-    ctx.kill();
-    expect(ctx.isAlive()).toBe(false);
-  });
 });
 
-describe('interrupted-run', () => {
+spec('interrupted-run', () => {
   let sdk: NodeSDK;
 
   beforeAll(() => {
@@ -103,6 +64,13 @@ describe('interrupted-run', () => {
       }
     }
   });
+
+  function context(timeout: number) {
+    const registry = new Map();
+    const wrap = (ctx: Context) => withDeadline(timeout)(withModels(registry)(ctx));
+
+    return wrap(new Context('request'));
+  }
 
   function wait(delay: number) {
     return new Promise(resolve => setTimeout(resolve, delay));
@@ -183,135 +151,191 @@ describe('interrupted-run', () => {
     };
   }
 
-  it('Scenario: Истечение срока — то же прерывание', async () => {
-    const deadline = harness(20);
-    const killedBefore = harness(20);
-    killedBefore.ctx.kill();
+  requirement('Истечение срока прерывает ожидание', () => {
+    scenario(
+      'Срок истекает раньше Model',
+      async () => {
+        const ctx = context(5);
 
-    const slow = recordedModel('SlowModel', async () => {
-      await wait(80);
-      return {ok: true};
-    });
-    const idle = recordedModel('IdleModel', () => ({ok: true}));
+        const model = vi.fn(async () => {
+          await wait(50);
+          return {result: 1};
+        });
+        (model as Model).displayName = 'slow-model';
 
-    const deadlineOutcome = await observe(
-      model => deadline.ctx.request(model, {}),
-      slow,
-      deadline.spans,
-      deadline.cache,
-      () => deadline.ctx.isAlive(),
-    );
-    const killedOutcome = await observe(
-      model => killedBefore.ctx.request(model, {}),
-      idle,
-      killedBefore.spans,
-      killedBefore.cache,
-      () => killedBefore.ctx.isAlive(),
-    );
+        await expect(ctx.request(model as Model, {})).rejects.toThrow(InterruptedError);
+        expect(ctx.isAlive()).toBe(false);
 
-    const same = {
-      interrupted: true,
-      killReturnDelivered: false,
-      alive: false,
-      retryRanModel: false,
-      cacheSets: 0,
-      resultEvents: 0,
-      errorEvents: 0,
-      successfulCompletion: false,
-      sawSpan: true,
-    };
-
-    expect(deadline.ctx.isAlive()).toBe(false);
-    expect(killedBefore.ctx.isAlive()).toBe(false);
-    expect(deadlineOutcome).toMatchObject(same);
-    expect(killedOutcome).toMatchObject(same);
-    expect(deadlineOutcome.firstRanModel).toBe(true);
-    expect(killedOutcome.firstRanModel).toBe(false);
-  }, 1000);
-
-  it('Scenario: Прерванный запуск не оставляет успешный span', async () => {
-    const before = harness(5000);
-    before.ctx.kill();
-    const between = harness(5000);
-    const expired = harness(20);
-
-    const beforeModel = recordedModel('BeforeModel', () => ({ok: true}));
-    const betweenModel = recordedModel(
-      'BetweenModel',
-      function* (_props: unknown, modelCtx: {kill: () => unknown}) {
-        yield Promise.resolve('step');
-        modelCtx.kill();
-        yield Promise.resolve('next');
-        return {ok: true};
+        const callsAfterFirst = model.mock.calls.length;
+        await expect(ctx.request(model as Model, {})).rejects.toThrow(InterruptedError);
+        expect(model.mock.calls.length).toBe(callsAfterFirst);
       },
+      200,
     );
-    const expiredModel = recordedModel('ExpiredModel', async () => {
-      await wait(80);
-      return {ok: true};
+
+    scenario('Model успевает до срока', async () => {
+      const ctx = context(50);
+
+      const model = vi.fn(async () => {
+        return {result: 1};
+      });
+      (model as Model).displayName = 'model';
+
+      const result = await ctx.request(model as Model, {});
+
+      expect(result).toEqual({result: 1});
+      expect(model).toHaveBeenCalledTimes(1);
+      expect(ctx.isAlive()).toBe(true);
     });
 
-    const cases = [
-      {
-        run: () => before.ctx.request(beforeModel, {}),
-        model: beforeModel,
-        spans: before.spans,
-        alive: () => before.ctx.isAlive(),
-      },
-      {
-        run: () => between.ctx.request(betweenModel, {}),
-        model: betweenModel,
-        spans: between.spans,
-        alive: () => between.ctx.isAlive(),
-      },
-      {
-        run: () => expired.ctx.request(expiredModel, {}),
-        model: expiredModel,
-        spans: expired.spans,
-        alive: () => expired.ctx.isAlive(),
-      },
-    ];
+    scenario('Нулевой срок не прерывает запуск по времени', async () => {
+      const ctx = context(0);
 
-    for (const item of cases) {
-      await expect(item.run()).rejects.toThrow(InterruptedError);
-      expect(item.alive()).toBe(false);
+      expect(ctx.isAlive()).toBe(true);
+      ctx.kill();
+      expect(ctx.isAlive()).toBe(false);
+    });
+  });
 
-      const modelSpans = item.spans.filter(span => span.name === item.model.displayName);
-      expect(modelSpans.length).toBeGreaterThan(0);
-      const events = modelSpans.flatMap(span => span.span.events);
+  requirement('Прерванный запуск не сохраняется и не записывается как успех', () => {
+    scenario(
+      'Истечение срока — то же прерывание',
+      async () => {
+        const deadline = harness(20);
+        const killedBefore = harness(20);
+        killedBefore.ctx.kill();
+
+        const slow = recordedModel('SlowModel', async () => {
+          await wait(80);
+          return {ok: true};
+        });
+        const idle = recordedModel('IdleModel', () => ({ok: true}));
+
+        const deadlineOutcome = await observe(
+          model => deadline.ctx.request(model, {}),
+          slow,
+          deadline.spans,
+          deadline.cache,
+          () => deadline.ctx.isAlive(),
+        );
+        const killedOutcome = await observe(
+          model => killedBefore.ctx.request(model, {}),
+          idle,
+          killedBefore.spans,
+          killedBefore.cache,
+          () => killedBefore.ctx.isAlive(),
+        );
+
+        const same = {
+          interrupted: true,
+          killReturnDelivered: false,
+          alive: false,
+          retryRanModel: false,
+          cacheSets: 0,
+          resultEvents: 0,
+          errorEvents: 0,
+          successfulCompletion: false,
+          sawSpan: true,
+        };
+
+        expect(deadline.ctx.isAlive()).toBe(false);
+        expect(killedBefore.ctx.isAlive()).toBe(false);
+        expect(deadlineOutcome).toMatchObject(same);
+        expect(killedOutcome).toMatchObject(same);
+        expect(deadlineOutcome.firstRanModel).toBe(true);
+        expect(killedOutcome.firstRanModel).toBe(false);
+      },
+      1000,
+    );
+
+    scenario('Model прерывает запуск и возвращает значение', async () => {
+      const run = harness(5000);
+      const model = recordedModel(
+        'KillReturnModel',
+        async (_props: unknown, modelCtx: {kill: () => unknown}) => {
+          modelCtx.kill();
+          return {ok: true};
+        },
+      );
+
+      let delivered: unknown;
+      try {
+        delivered = await run.ctx.request(model, {});
+      } catch (error) {
+        delivered = error;
+      }
+
+      expect(delivered).toBeInstanceOf(InterruptedError);
+      expect(run.ctx.isAlive()).toBe(false);
+
+      const callsAfterFirst = model.mock.calls.length;
+      await expect(run.ctx.request(model, {})).rejects.toBeInstanceOf(InterruptedError);
+      expect(model.mock.calls.length).toBe(callsAfterFirst);
+
+      expect((run.cache.set as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+
+      const modelSpans = run.spans.filter(item => item.name === model.displayName);
+      const events = modelSpans.flatMap(item => item.span.events);
       expect(events.filter(event => event.name === 'result')).toHaveLength(0);
-      expect(events.filter(event => event.name === 'error')).toHaveLength(0);
-      expect(modelSpans.some(span => span.span.status.code === SpanStatusCode.OK)).toBe(false);
-    }
-  }, 1000);
+    });
 
-  it('Scenario: Model прерывает запуск и возвращает значение', async () => {
-    const run = harness(5000);
-    const model = recordedModel(
-      'KillReturnModel',
-      async (_props: unknown, modelCtx: {kill: () => unknown}) => {
-        modelCtx.kill();
-        return {ok: true};
+    scenario(
+      'Прерванный запуск не оставляет успешный span',
+      async () => {
+        const before = harness(5000);
+        before.ctx.kill();
+        const between = harness(5000);
+        const expired = harness(20);
+
+        const beforeModel = recordedModel('BeforeModel', () => ({ok: true}));
+        const betweenModel = recordedModel(
+          'BetweenModel',
+          function* (_props: unknown, modelCtx: {kill: () => unknown}) {
+            yield Promise.resolve('step');
+            modelCtx.kill();
+            yield Promise.resolve('next');
+            return {ok: true};
+          },
+        );
+        const expiredModel = recordedModel('ExpiredModel', async () => {
+          await wait(80);
+          return {ok: true};
+        });
+
+        const cases = [
+          {
+            run: () => before.ctx.request(beforeModel, {}),
+            model: beforeModel,
+            spans: before.spans,
+            alive: () => before.ctx.isAlive(),
+          },
+          {
+            run: () => between.ctx.request(betweenModel, {}),
+            model: betweenModel,
+            spans: between.spans,
+            alive: () => between.ctx.isAlive(),
+          },
+          {
+            run: () => expired.ctx.request(expiredModel, {}),
+            model: expiredModel,
+            spans: expired.spans,
+            alive: () => expired.ctx.isAlive(),
+          },
+        ];
+
+        for (const item of cases) {
+          await expect(item.run()).rejects.toThrow(InterruptedError);
+          expect(item.alive()).toBe(false);
+
+          const modelSpans = item.spans.filter(span => span.name === item.model.displayName);
+          expect(modelSpans.length).toBeGreaterThan(0);
+          const events = modelSpans.flatMap(span => span.span.events);
+          expect(events.filter(event => event.name === 'result')).toHaveLength(0);
+          expect(events.filter(event => event.name === 'error')).toHaveLength(0);
+          expect(modelSpans.some(span => span.span.status.code === SpanStatusCode.OK)).toBe(false);
+        }
       },
+      1000,
     );
-
-    let delivered: unknown;
-    try {
-      delivered = await run.ctx.request(model, {});
-    } catch (error) {
-      delivered = error;
-    }
-
-    expect(delivered).toBeInstanceOf(InterruptedError);
-    expect(run.ctx.isAlive()).toBe(false);
-
-    const callsAfterFirst = model.mock.calls.length;
-    await expect(run.ctx.request(model, {})).rejects.toBeInstanceOf(InterruptedError);
-    expect(model.mock.calls.length).toBe(callsAfterFirst);
-
-    expect((run.cache.set as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
-
-    const modelSpans = run.spans.filter(item => item.name === model.displayName);
-    const events = modelSpans.flatMap(item => item.span.events);
-    expect(events.filter(event => event.name === 'result')).toHaveLength(0);
   });
 });

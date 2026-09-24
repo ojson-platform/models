@@ -1,5 +1,6 @@
 import type {Model} from '../types';
 
+import {requirement, scenario, spec} from '@ojson/spec-coverage';
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
@@ -115,37 +116,6 @@ describe('withModels', () => {
     await expect(() => context.request(model, {test: 1})).rejects.toThrow(
       'Unexpected model result',
     );
-  });
-
-  it('should prevent processing if dead', async () => {
-    const registry = new Map();
-    const context = withModels(registry)(new Context('request'));
-    const model = vi.fn(() => ({result: 1})) as unknown as Model;
-
-    model.displayName = 'model';
-
-    context.kill();
-
-    await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
-    expect(model).not.toBeCalled();
-  });
-
-  it('should prevent processing steps if dead', async () => {
-    const registry = new Map();
-    const context = withModels(registry)(new Context('request'));
-    const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
-    const model = vi.fn(function* () {
-      yield wait(10);
-      context.kill();
-      yield wait(10);
-
-      return {result: 1};
-    }) as unknown as Model;
-
-    model.displayName = 'model';
-
-    await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
-    expect(model).toBeCalledWith({test: 1}, expect.anything());
   });
 
   it('should work with model as object with action method', async () => {
@@ -621,6 +591,67 @@ describe('withModels', () => {
       expect(result).toBe('value');
       expect(receivedProps).toEqual({nested: {a: 'value'}});
       expect('b' in receivedProps.nested).toBe(false);
+    });
+  });
+});
+
+spec('interrupted-run', () => {
+  requirement('Запуск, прерванный до выполнения Model, не сохраняется как успех', () => {
+    scenario('Обращение после прерывания не выполняет Model', async () => {
+      const registry = new Map();
+      const context = withModels(registry)(new Context('request'));
+      const model = vi.fn(() => ({result: 1})) as unknown as Model;
+
+      model.displayName = 'model';
+
+      context.kill();
+
+      await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+      expect(model).not.toBeCalled();
+    });
+
+    scenario('Повтор не находит сохранённый успех', async () => {
+      const registry = new Map();
+      const context = withModels(registry)(new Context('request'));
+      const model = vi.fn(() => ({result: 1})) as unknown as Model;
+
+      model.displayName = 'model';
+      context.kill();
+
+      await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+      await expect(context.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+      expect(model).not.toBeCalled();
+    });
+
+    scenario('Вложенный запуск прерывается вместе с внешним', async () => {
+      const registry = new Map();
+      const parent = withModels(registry)(new Context('request'));
+      const model = vi.fn(() => ({result: 1})) as unknown as Model;
+
+      model.displayName = 'model';
+      parent.kill();
+
+      const child = parent.create('child');
+      await expect(child.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+      expect(model).not.toBeCalled();
+    });
+  });
+
+  requirement('Уже возвращённое значение переживает прерывание', () => {
+    scenario('Успех до прерывания остаётся в мемоизации', async () => {
+      const registry = new Map();
+      const context = withModels(registry)(new Context('request'));
+      const model = vi.fn(() => ({result: 1})) as unknown as Model;
+
+      model.displayName = 'model';
+
+      const first = await context.request(model, {test: 1});
+      context.kill();
+      const second = await context.request(model, {test: 1});
+
+      expect(first).toEqual({result: 1});
+      expect(second).toEqual({result: 1});
+      expect(model).toHaveBeenCalledTimes(1);
     });
   });
 });

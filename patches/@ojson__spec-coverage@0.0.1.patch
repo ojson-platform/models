@@ -1,0 +1,32 @@
+diff --git a/src/wrap.ts b/src/wrap.ts
+index c24d37e86f9063fe602f24a68331629c6c86d4b9..5f5b1bc85d47989e07c00085e8e1226bc09b8242 100644
+--- a/src/wrap.ts
++++ b/src/wrap.ts
+@@ -19,25 +19,15 @@ function frame(): Triple {
+ 
+ export function spec(id: string, body: () => void): void {
+   describe(id, () => {
+-    const previous = current.spec;
+     current.spec = id;
+-    try {
+-      body();
+-    } finally {
+-      current.spec = previous;
+-    }
++    body();
+   });
+ }
+ 
+ export function requirement(title: string, body: () => void): void {
+   describe(title, () => {
+-    const previous = current.requirement;
+     current.requirement = title;
+-    try {
+-      body();
+-    } finally {
+-      current.requirement = previous;
+-    }
++    body();
+   });
+ }
+ 
