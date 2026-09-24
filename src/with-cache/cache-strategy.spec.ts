@@ -169,6 +169,61 @@ spec('cache-only', () => {
   });
 });
 
+function networkOnlyContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+  return wrap(new Context('request'));
+}
+
+spec('network-only', () => {
+  requirement('Сохранённое значение не участвует в ответе', () => {
+    scenario('Повтор не берёт сохранённое значение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = networkOnlyContext(cache);
+        const ctx2 = networkOnlyContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+
+        model.cacheStrategy = NetworkOnly;
+
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result = await ctx2.request(model, {id: 1});
+        expect(result).toEqual({result: 2});
+        expect(model).toBeCalledTimes(2);
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Первое обращение тоже не пишет', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = networkOnlyContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = NetworkOnly;
+
+        await ctx.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 function cacheTtlDefaultContext(cache: TrackingCacheProvider) {
   const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
@@ -1238,73 +1293,6 @@ describe('Cache strategies behavior', () => {
       const result = await ctx.request(model, {id: 1});
       expect(result).toBeUndefined();
       expect(model).toBeCalledTimes(0); // Model never called
-    });
-  });
-
-  describe('NetworkOnly', () => {
-    it('should always execute model and ignore cache', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-
-      let inc = 1;
-      const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // First call caches the value
-      await ctx1.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-
-      // Switch to NetworkOnly strategy
-      model.cacheStrategy = NetworkOnly;
-
-      // Clear cache.set mocks
-      (cache.set as ReturnType<typeof vi.fn>).mockClear();
-
-      // Second call should execute model again (ignore cache)
-      const result = await ctx2.request(model, {id: 1});
-      expect(result).toEqual({result: 2});
-      expect(model).toBeCalledTimes(2); // Model called again
-      expect(cache.set).not.toHaveBeenCalled(); // NetworkOnly doesn't cache
-    });
-
-    it('should not read from cache', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-
-      let inc = 1;
-      const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // First call caches the value
-      await ctx1.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-
-      // Switch to NetworkOnly
-      model.cacheStrategy = NetworkOnly;
-
-      // Clear mocks
-      (cache.get as ReturnType<typeof vi.fn>).mockClear();
-
-      // Second call should execute model (not read from cache)
-      const result = await ctx2.request(model, {id: 1});
-      expect(result).toEqual({result: 2}); // New value, not cached value
-      expect(model).toBeCalledTimes(2);
-      // Note: NetworkOnly might still call cache.get internally, but result should be from model
-    });
-
-    it('should not write to cache', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = NetworkOnly;
-
-      await ctx.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).not.toHaveBeenCalled(); // NetworkOnly never caches
     });
   });
 
