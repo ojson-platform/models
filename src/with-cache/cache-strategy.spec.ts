@@ -695,6 +695,269 @@ spec('cache-zip', () => {
   });
 });
 
+spec('disable-cache', () => {
+  requirement('Выключение не снимается и копируется только в новый вложенный запрос', () => {
+    scenario('Новый вложенный запрос рождается выключенным', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const parentCtx = wrap(new Context('request'));
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        parentCtx.disableCache();
+        expect(parentCtx.shouldCache()).toBe(false);
+
+        const childCtx = parentCtx.create('child') as typeof parentCtx;
+        expect(childCtx.shouldCache()).toBe(false);
+
+        (cache.get as ReturnType<typeof vi.fn>).mockClear();
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result = await childCtx.request(model, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(cache.get).not.toHaveBeenCalled();
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Уже созданный вложенный запрос остаётся включённым', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const parentCtx = wrap(new Context('request'));
+        const childCtx = parentCtx.create('child') as typeof parentCtx;
+
+        expect(parentCtx.shouldCache()).toBe(true);
+        expect(childCtx.shouldCache()).toBe(true);
+
+        parentCtx.disableCache();
+        expect(parentCtx.shouldCache()).toBe(false);
+        expect(childCtx.shouldCache()).toBe(true);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Выключение вложенного запроса не выключает родителя', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const parentCtx = wrap(new Context('request'));
+        const childCtx = parentCtx.create('child') as typeof parentCtx;
+        const siblingCtx = parentCtx.create('sibling') as typeof parentCtx;
+
+        childCtx.disableCache();
+        expect(childCtx.shouldCache()).toBe(false);
+        expect(parentCtx.shouldCache()).toBe(true);
+        expect(siblingCtx.shouldCache()).toBe(true);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Другое дерево не выключено', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap1 = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const wrap2 = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx1 = wrap1(new Context('request'));
+        const ctx2 = wrap2(new Context('request-2'));
+
+        let inc = 1;
+        const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+
+        ctx1.disableCache();
+        (cache.get as ReturnType<typeof vi.fn>).mockClear();
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.get).not.toHaveBeenCalled();
+        expect(cache.set).not.toHaveBeenCalled();
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.get).toHaveBeenCalled();
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Выключенный запрос не применяет стратегию', () => {
+    scenario('Обращение не трогает хранилище', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx = wrap(new Context('request'));
+
+        let inc = 1;
+        const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        ctx.disableCache();
+
+        (cache.get as ReturnType<typeof vi.fn>).mockClear();
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result1 = await ctx.request(model, {test: 1});
+        expect(result1).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.get).not.toHaveBeenCalled();
+        expect(cache.set).not.toHaveBeenCalled();
+
+        const result2 = await ctx.request(model, {test: 1});
+        expect(result2).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Попадание не запускает фоновое обновление', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap1 = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const wrap2 = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx1 = wrap1(new Context('request'));
+        const ctx2 = wrap2(new Context('request-2'));
+
+        let inc = 1;
+        const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+
+        ctx2.disableCache();
+        (cache.get as ReturnType<typeof vi.fn>).mockClear();
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result = await ctx2.request(model, {id: 1});
+        expect(result).toEqual({result: 2});
+        expect(model).toBeCalledTimes(2);
+        expect(cache.set).not.toHaveBeenCalled();
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Негодный срок не отклоняет выключенный запрос', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({} as CacheConfig, cache)]);
+        const ctx = wrap(new Context('request'));
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        ctx.disableCache();
+
+        await expect(ctx.request(model, {id: 1})).resolves.toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.get).not.toHaveBeenCalled();
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Model выключает кэш до записи', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx = wrap(new Context('request'));
+
+        const model = vi.fn(() => {
+          ctx.disableCache();
+          return {result: 1};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result = await ctx.request(model, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Фоновое обновление выключает кэш только у собранного им запроса', () => {
+    scenario('Обновление не кэширует снова без фабрики вызывающего', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+        const ctx1 = wrap(new Context('request'));
+        const ctx2 = wrap(new Context('request'));
+
+        let inc = 1;
+        let releaseBackgroundModel: () => void;
+        const backgroundModelGate = new Promise<void>(resolve => {
+          releaseBackgroundModel = resolve;
+        });
+
+        const model = vi.fn(async () => {
+          if (inc > 1) {
+            await backgroundModelGate;
+          }
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        const cacheKey = 'model;id=1' as Key;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+
+        (cache.get as ReturnType<typeof vi.fn>).mockClear();
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        releaseBackgroundModel!();
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(cache.get).not.toHaveBeenCalled();
+        expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 2}, 3600);
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 describe('Cache strategies behavior', () => {
   let cache: TrackingCacheProvider;
 
@@ -1030,47 +1293,6 @@ describe('Cache strategies behavior', () => {
       expect(model).toBeCalledTimes(2);
     });
 
-    it('Обновление не кэширует снова без фабрики вызывающего', async () => {
-      const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
-
-      const ctx1 = wrap(new Context('request'));
-      const ctx2 = wrap(new Context('request'));
-
-      let inc = 1;
-      let releaseBackgroundModel: () => void;
-      const backgroundModelGate = new Promise<void>(resolve => {
-        releaseBackgroundModel = resolve;
-      });
-
-      const model = vi.fn(async () => {
-        if (inc > 1) {
-          await backgroundModelGate;
-        }
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      const cacheKey = 'model;id=1' as Key;
-
-      await ctx1.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-
-      const result2 = await ctx2.request(model, {id: 1});
-      expect(result2).toEqual({result: 1});
-
-      (cache.get as ReturnType<typeof vi.fn>).mockClear();
-      (cache.set as ReturnType<typeof vi.fn>).mockClear();
-
-      releaseBackgroundModel!();
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(cache.get).not.toHaveBeenCalled();
-      expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 2}, 3600);
-      expect(model).toBeCalledTimes(2);
-    });
-
     it('should trigger background update on cache hit', async () => {
       const ctx1 = context();
       const ctx2 = context();
@@ -1104,37 +1326,6 @@ describe('Cache strategies behavior', () => {
       // After background update there should be another cache.set call with new value
       expect(cache.set).toHaveBeenCalled();
       expect(model).toBeCalledTimes(2); // Model called second time in background update
-    });
-
-    it('should not perform background update when cache is disabled', async () => {
-      const ctx = context();
-
-      let inc = 1;
-      const model = vi.fn(() => {
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      // First call with cache enabled
-      await ctx.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-
-      // Disable cache
-      ctx.disableCache();
-
-      // Clear mocks
-      (cache.get as ReturnType<typeof vi.fn>).mockClear();
-      (cache.set as ReturnType<typeof vi.fn>).mockClear();
-
-      // Second call with cache disabled
-      // withModels memoization still works in the same context
-      const result = await ctx.request(model, {id: 1});
-      expect(result).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1); // Model not called (memoization)
-      expect(cache.set).not.toHaveBeenCalled(); // Cache not updated, strategy not applied
     });
 
     it('should work with custom TTL via with() method for StaleWhileRevalidate', async () => {

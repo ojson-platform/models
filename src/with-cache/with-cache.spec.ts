@@ -129,33 +129,6 @@ describe('withCache', () => {
       expect(model).toBeCalledTimes(2); // Model no longer called
     });
 
-    it('should not use cache strategy when cache is disabled', async () => {
-      const ctx = context();
-
-      let inc = 1;
-      const model = vi.fn(() => {
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // Disable cache BEFORE first request
-      ctx.disableCache();
-
-      // First call - strategy not used, result not cached via cache.set
-      const result1 = await ctx.request(model, {test: 1});
-      expect(result1).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(0); // Result not cached via cache
-
-      // Second call in same context - uses withModels memoization
-      const result2 = await ctx.request(model, {test: 1});
-      expect(result2).toEqual({result: 1}); // Memoized via withModels
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(0); // Result not cached via cache
-    });
-
     it('should not cache result when model throws error', async () => {
       const ctx = context();
 
@@ -284,58 +257,6 @@ describe('withCache', () => {
       expect(result2).toEqual({result: 2});
       expect(model).toBeCalledTimes(2); // Model called again
       expect(cache.set).not.toHaveBeenCalled(); // Still no caching
-    });
-  });
-
-  describe('disableCache propagation', () => {
-    it('should propagate disableCache to child contexts', async () => {
-      const parentCtx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // First call in parent context caches the value
-      await parentCtx.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-
-      // Disable cache in parent context
-      parentCtx.disableCache();
-      expect(parentCtx.shouldCache()).toBe(false);
-
-      // Create child context
-      const childCtx = parentCtx.create('child') as typeof parentCtx;
-
-      // Child context should see that cache is disabled
-      expect(childCtx.shouldCache()).toBe(false);
-
-      // Clear mocks
-      (cache.set as ReturnType<typeof vi.fn>).mockClear();
-
-      // Request in child context should not use cache strategy
-      const result = await childCtx.request(model, {id: 1});
-      expect(result).toEqual({result: 1}); // From withModels memoization
-      expect(cache.set).not.toHaveBeenCalled(); // Cache strategy not used
-    });
-
-    it('should allow child context to check cache status', async () => {
-      const parentCtx = context();
-
-      // Cache is enabled by default
-      expect(parentCtx.shouldCache()).toBe(true);
-
-      // Create child context
-      const childCtx = parentCtx.create('child') as typeof parentCtx;
-      expect(childCtx.shouldCache()).toBe(true);
-
-      // Disable cache in parent
-      parentCtx.disableCache();
-      expect(parentCtx.shouldCache()).toBe(false);
-
-      // New child created after disabling should see cache is disabled
-      const childCtx2 = parentCtx.create('child2') as typeof parentCtx;
-      expect(childCtx2.shouldCache()).toBe(false);
     });
   });
 
