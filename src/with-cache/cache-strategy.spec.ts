@@ -1130,6 +1130,134 @@ spec('interrupted-run', () => {
   });
 });
 
+function staleWhileRevalidateContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+  return wrap(new Context('request'));
+}
+
+spec('stale-while-revalidate', () => {
+  requirement('Промах выполняет Model и сохраняет результат', () => {
+    scenario('Первое обращение сохраняет результат', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = staleWhileRevalidateContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        const result1 = await ctx.request(model, {id: 1});
+        expect(result1).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Ошибка Model не сохраняется', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = staleWhileRevalidateContext(cache);
+
+        const error = new Error('Model error');
+        const model = vi.fn(() => {
+          throw error;
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
+
+        expect(cache.set).toHaveBeenCalledTimes(0);
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Попадание сразу возвращает сохранённое и обновляет его в фоне', () => {
+    scenario('Ответ не ждёт фонового обновления', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx1 = wrap(new Context('request-1'));
+        const ctx2 = wrap(new Context('request-2'));
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(cache.set).toHaveBeenCalled();
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Сбой обновления оставляет прежнее значение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx1 = wrap(new Context('request-1'));
+        const ctx2 = wrap(new Context('request-2'));
+        const ctx3 = wrap(new Context('request-3'));
+
+        const error = new Error('Background update error');
+        const model = vi
+          .fn()
+          .mockReturnValueOnce({result: 1})
+          .mockImplementationOnce(() => {
+            throw error;
+          }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        const result1 = await ctx1.request(model, {id: 1});
+        expect(result1).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(model).toBeCalledTimes(2);
+
+        const result3 = await ctx3.request(model, {id: 1});
+        expect(result3).toEqual({result: 1});
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 describe('Cache strategies behavior', () => {
   let cache: TrackingCacheProvider;
 
@@ -1297,24 +1425,6 @@ describe('Cache strategies behavior', () => {
   });
 
   describe('StaleWhileRevalidate', () => {
-    it('should execute model and cache result on cache miss', async () => {
-      const ctx = context();
-
-      let inc = 1;
-      const model = vi.fn(() => {
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      // First call - cache miss, model executes
-      const result1 = await ctx.request(model, {id: 1});
-      expect(result1).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-    });
-
     it('should return cached value immediately on cache hit', async () => {
       const ctx1 = context();
       const ctx2 = context();
@@ -1345,41 +1455,6 @@ describe('Cache strategies behavior', () => {
       // Final check: model called 2 times
       // 1 time on cache miss + 1 time in background update on cache hit
       expect(model).toBeCalledTimes(2);
-    });
-
-    it('should trigger background update on cache hit', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-
-      let inc = 1;
-      const model = vi.fn(() => {
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      // First call in first context - cache miss, saves {result: 1}
-      await ctx1.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-
-      // Clear mocks before second call
-      (cache.set as ReturnType<typeof vi.fn>).mockClear();
-
-      // Second call in second context - cache hit
-      // Use different context to avoid withModels memoization and test real caching
-      const result2 = await ctx2.request(model, {id: 1});
-      expect(result2).toEqual({result: 1}); // Stale value returned immediately
-
-      // Background update should start asynchronously via cache.update()
-      // cache.update() creates a new context and calls the model, then saves via cache.set()
-      // Give time for background update to complete
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // After background update there should be another cache.set call with new value
-      expect(cache.set).toHaveBeenCalled();
-      expect(model).toBeCalledTimes(2); // Model called second time in background update
     });
 
     it('should work with custom TTL via with() method for StaleWhileRevalidate', async () => {
@@ -1432,46 +1507,6 @@ describe('Cache strategies behavior', () => {
 
       // Model called 2 more times in background update (once for each props)
       expect(model).toBeCalledTimes(4);
-    });
-
-    it('should return stale value even if background update fails', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-      const ctx3 = context();
-
-      const error = new Error('Background update error');
-      const model = vi
-        .fn()
-        .mockReturnValueOnce({result: 1})
-        .mockImplementationOnce(() => {
-          // Model fails with error during background update
-          throw error;
-        }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      // First call in first context - cache miss, saves {result: 1}
-      const result1 = await ctx1.request(model, {id: 1});
-      expect(result1).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1);
-
-      // Second call in second context - cache hit, returns stale value immediately
-      // Use different context to avoid withModels memoization and test real caching
-      // Background update starts and fails with error, but this should not affect the result
-      const result2 = await ctx2.request(model, {id: 1});
-      expect(result2).toEqual({result: 1}); // Stale value returned successfully
-
-      // Wait for background update to complete (which should fail)
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Model should have been called in background update (and failed)
-      expect(model).toBeCalledTimes(2);
-
-      // On next request in third context, stale value is still returned
-      // (background update did not update cache due to error)
-      const result3 = await ctx3.request(model, {id: 1});
-      expect(result3).toEqual({result: 1});
     });
   });
 });

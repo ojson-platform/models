@@ -1,5 +1,6 @@
 import type {WithCacheModel} from './types';
 
+import {requirement, scenario, spec} from '@ojson/spec-coverage';
 import {describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
@@ -8,9 +9,9 @@ import {withModels} from '../with-models';
 import {Cache} from './cache';
 import {TrackingCacheProvider} from './__tests__/cache-provider';
 
-describe('Cache', () => {
-  describe('update()', () => {
-    it('should deduplicate parallel updates for the same model and props', async () => {
+spec('stale-while-revalidate', () => {
+  requirement('Попадание сразу возвращает сохранённое и обновляет его в фоне', () => {
+    scenario('Параллельные обновления одной записи выполняют Model один раз', async () => {
       const cacheProvider = new TrackingCacheProvider();
       const cache = new Cache({default: {ttl: 3600}}, cacheProvider, (name: string) =>
         withModels(new Map())(new Context(name)),
@@ -23,23 +24,22 @@ describe('Cache', () => {
       }) as unknown as WithCacheModel;
       model.displayName = 'model';
 
-      // Start multiple parallel updates for the same model and props
       const update1 = cache.update(model, {id: 1}, {ttl: 3600});
       const update2 = cache.update(model, {id: 1}, {ttl: 3600});
       const update3 = cache.update(model, {id: 1}, {ttl: 3600});
 
-      // All promises should resolve
       await Promise.all([update1, update2, update3]);
 
-      // Model should be called only once (not three times)
       expect(model).toBeCalledTimes(1);
-
-      // Cache should be set once
       expect(cacheProvider.set).toHaveBeenCalledTimes(1);
 
       cacheProvider.release();
     });
+  });
+});
 
+describe('Cache', () => {
+  describe('update()', () => {
     it('should allow parallel updates for different models or props', async () => {
       const cacheProvider = new TrackingCacheProvider();
       const cache = new Cache({default: {ttl: 3600}}, cacheProvider, (name: string) =>
