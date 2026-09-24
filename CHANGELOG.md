@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0](https://github.com/ojson-platform/models/compare/models-v1.1.2...models-v1.2.0) (2026-09-24)
+
+
+### Features
+
+* **cache:** add compression support for cache strategies ([477647f](https://github.com/ojson-platform/models/commit/477647f8b0b677ba58a142100f787ca9522d8568))
+* **validation:** add withValidation module ([06cee9a](https://github.com/ojson-platform/models/commit/06cee9a5ee6bf14ac3bea63c9c982815f73d4e3b))
+
+
+### Bug Fixes
+
+* install @ojson/infra dependencies in CI ([712d507](https://github.com/ojson-platform/models/commit/712d5070051d9a69679e58dd71f20ab64538a21b))
+* install @ojson/infra from npm ([f2e0de1](https://github.com/ojson-platform/models/commit/f2e0de11e1f9f90e96e09f9bbea25d5c208b74cb))
+* install @ojson/infra in GitHub Actions ([00059a0](https://github.com/ojson-platform/models/commit/00059a0ac90504c302d21aef85461fbf72358a9b))
+* make the example and coverage runnable in CI ([81b21bf](https://github.com/ojson-platform/models/commit/81b21bfc8d60e325d748f42ca4283bc91ce2b1d7))
+* make the remaining master checks installable ([f89bdc3](https://github.com/ojson-platform/models/commit/f89bdc376d9d0418ff82a75ca05ed7ccde682663))
+* use @ojson/infra 1.0.1 for coverage ([ef29e97](https://github.com/ojson-platform/models/commit/ef29e9770230f79c00e08a9062a0d24736354c6a))
+
 ## [1.1.2](https://github.com/ojson-platform/models/compare/models-v1.1.1...models-v1.1.2) (2025-12-21)
 
 
