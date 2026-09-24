@@ -169,158 +169,309 @@ spec('cache-only', () => {
   });
 });
 
-describe('Strategy.with()', () => {
-  let cache: TrackingCacheProvider;
+function cacheTtlDefaultContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
 
-  function context() {
-    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+  return wrap(new Context('request'));
+}
 
-    return wrap(new Context('request'));
-  }
+spec('cache-ttl', () => {
+  requirement('Срок стратегии подменяет срок по умолчанию', () => {
+    scenario('Свой срок важнее срока по умолчанию', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
 
-  beforeEach(() => {
-    cache = new TrackingCacheProvider();
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({ttl: 1800});
+
+        await ctx.request(model, {id: 1});
+
+        const cacheKey = 'model;id=1' as Key;
+        expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, 1800);
+        expect(cache.set).not.toHaveBeenCalledWith(cacheKey, expect.anything(), 3600);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Без своего срока берётся срок по умолчанию', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx.request(model, {id: 1});
+
+        expect(cache.set).toHaveBeenCalledWith('model;id=1' as Key, {result: 1}, 3600);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Две стратегии хранят каждая со своим сроком', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        let inc = 1;
+        const model1 = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model1.displayName = 'model1';
+        model1.cacheStrategy = CacheFirst.with({ttl: 1800});
+
+        const model2 = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model2.displayName = 'model2';
+        model2.cacheStrategy = StaleWhileRevalidate.with({ttl: 7200});
+
+        await ctx.request(model1, {id: 1});
+        await ctx.request(model2, {id: 2});
+
+        expect(cache.set).toHaveBeenCalledWith('model1;id=1' as Key, expect.anything(), 1800);
+        expect(cache.set).toHaveBeenCalledWith('model2;id=2' as Key, expect.anything(), 7200);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Фоновое обновление пишет с тем же сроком', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate.with({ttl: 1800});
+
+        const cacheKey = `model;test=1` as Key;
+
+        await ctx.request(model, {test: 1});
+        expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, 1800);
+
+        await ctx.request(model, {test: 1});
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(model).toBeCalledTimes(2);
+        expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, 1800);
+        expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 2}, 1800);
+      } finally {
+        cache.release();
+      }
+    });
   });
 
-  afterEach(() => {
-    cache.release();
+  requirement('Выбор срока остаётся в общей конфигурации', () => {
+    scenario('Следующая Model наследует чужой срок', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        const model1 = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model1.displayName = 'model1';
+        model1.cacheStrategy = CacheFirst.with({ttl: 1800});
+
+        const model2 = vi.fn(() => ({result: 2})) as unknown as WithCacheModel;
+        model2.displayName = 'model2';
+        model2.cacheStrategy = CacheFirst;
+
+        await ctx.request(model1, {id: 1});
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        await ctx.request(model2, {id: 2});
+
+        expect(cache.set).toHaveBeenCalledWith('model2;id=2' as Key, {result: 2}, 1800);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Отвергнутый срок портит следующее обращение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({ttl: 0});
+
+        await expect(ctx.request(model, {id: 1})).rejects.toThrow(
+          'TTL for "cache-first" strategy must be a positive number',
+        );
+
+        model.cacheStrategy = CacheFirst;
+
+        await expect(ctx.request(model, {id: 2})).rejects.toThrow(
+          'TTL for "cache-first" strategy must be a positive number',
+        );
+        expect(model).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
   });
 
-  it('should accept simple { ttl: number } config for strategy-specific TTL', async () => {
-    const ctx = context();
+  requirement('Сохраняющая стратегия без годного срока не применяется', () => {
+    scenario('Срок не задан', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({} as CacheConfig, cache)]);
+        const ctx = wrap(new Context('request'));
 
-    let inc = 1;
-    const model = vi.fn(() => {
-      return {result: inc++};
-    }) as unknown as WithCacheModel;
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
 
-    model.displayName = 'model';
-    const customTTL = 1800; // 30 minutes
-    model.cacheStrategy = StaleWhileRevalidate.with({ttl: customTTL});
+        await expect(ctx.request(model, {id: 1})).rejects.toThrow(
+          'TTL for "cache-first" strategy is not configured',
+        );
+        expect(model).not.toHaveBeenCalled();
+        expect(cache.get).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
 
-    // First call should execute model and cache result
-    const result1 = await ctx.request(model, {test: 1});
-    expect(result1).toEqual({result: 1});
-    expect(model).toBeCalledTimes(1);
+    scenario('Срок не число', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([
+          withModels(new Map()),
+          withCache({default: {ttl: 'invalid' as unknown as number}} as CacheConfig, cache),
+        ]);
+        const ctx = wrap(new Context('request'));
 
-    // Check that value was cached with correct TTL
-    const cacheKey = `model;test=1` as Key;
-    expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
 
-    // Second call should return cached value
-    const result2 = await ctx.request(model, {test: 1});
-    expect(result2).toEqual({result: 1});
+        await expect(ctx.request(model, {id: 1})).rejects.toThrow(
+          'TTL for "cache-first" strategy is not configured',
+        );
+      } finally {
+        cache.release();
+      }
+    });
 
-    // Background update starts asynchronously for StaleWhileRevalidate
-    // Wait for it to complete
-    await new Promise(resolve => setTimeout(resolve, 10));
+    scenario('Срок не положительный', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
 
-    // Background update calls model second time and updates cache
-    expect(model).toBeCalledTimes(2);
-    // Check that all cache.set calls use correct TTL
-    expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
-    expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 2}, customTTL);
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({ttl: 0});
+
+        await expect(ctx.request(model, {id: 1})).rejects.toThrow(
+          'TTL for "cache-first" strategy must be a positive number',
+        );
+        expect(model).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Отрицательный и не конечный срок — та же ошибка', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheTtlDefaultContext(cache);
+
+        const modelNegative = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        modelNegative.displayName = 'model';
+        modelNegative.cacheStrategy = StaleWhileRevalidate.with({ttl: -1});
+
+        await expect(ctx.request(modelNegative, {id: 1})).rejects.toThrow(
+          'TTL for "stale-while-revalidate" strategy must be a positive number',
+        );
+
+        const modelNonFinite = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        modelNonFinite.displayName = 'model2';
+        modelNonFinite.cacheStrategy = StaleWhileRevalidate.with({
+          ttl: Number.POSITIVE_INFINITY,
+        });
+
+        await expect(ctx.request(modelNonFinite, {id: 2})).rejects.toThrow(
+          'TTL for "stale-while-revalidate" strategy must be a positive number',
+        );
+      } finally {
+        cache.release();
+      }
+    });
   });
 
-  it('should work with CacheFirst strategy using simple { ttl: number }', async () => {
-    const ctx = context();
+  requirement('Стратегия, которая не сохраняет значение, срока не требует', () => {
+    scenario('cache-only читает без срока', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({} as CacheConfig, cache)]);
+        const ctx = wrap(new Context('request'));
 
-    let inc = 1;
-    const model = vi.fn(() => {
-      return {result: inc++};
-    }) as unknown as WithCacheModel;
+        const cacheKey = 'model;id=1' as Key;
+        await cache.set(cacheKey, {result: 1}, 3600);
 
-    model.displayName = 'model';
-    const customTTL = 2400; // 40 minutes
-    model.cacheStrategy = CacheFirst.with({ttl: customTTL});
+        const model = vi.fn(() => ({result: 99})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheOnly;
 
-    // First call should execute model and cache result
-    const result1 = await ctx.request(model, {test: 1});
-    expect(result1).toEqual({result: 1});
-    expect(model).toBeCalledTimes(1);
+        const result = await ctx.request(model, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(model).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
 
-    // Check that value was cached with correct TTL
-    const cacheKey = `model;test=1` as Key;
-    expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
+    scenario('network-only выполняется без срока', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({} as CacheConfig, cache)]);
+        const ctx = wrap(new Context('request'));
 
-    // Second call should return cached value
-    const result2 = await ctx.request(model, {test: 1});
-    expect(result2).toEqual({result: 1});
-    expect(model).toBeCalledTimes(1);
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = NetworkOnly;
 
-    // Check that there was only one set call with correct TTL
-    expect(cache.set).toHaveBeenCalledTimes(1);
-    expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
+        const result = await ctx.request(model, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
   });
 
-  it('should use different TTL for different strategies', async () => {
-    const ctx = context();
+  requirement('Встроенное хранилище перестаёт отдавать значение после срока', () => {
+    scenario('Чтение после срока — промах', async () => {
+      vi.useFakeTimers();
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheTtlDefaultContext(cache);
+        const ctx2 = cacheTtlDefaultContext(cache);
 
-    let inc = 1;
-    const model1 = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
-    model1.displayName = 'model1';
-    model1.cacheStrategy = CacheFirst.with({ttl: 1800});
+        let inc = 1;
+        const model = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({ttl: 1});
 
-    const model2 = vi.fn(() => ({result: inc++})) as unknown as WithCacheModel;
-    model2.displayName = 'model2';
-    model2.cacheStrategy = StaleWhileRevalidate.with({ttl: 7200});
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
 
-    await ctx.request(model1, {id: 1});
-    await ctx.request(model2, {id: 2});
+        vi.advanceTimersByTime(1100);
 
-    // Check that each model was cached with correct TTL
-    expect(cache.set).toHaveBeenCalledWith('model1;id=1' as Key, expect.anything(), 1800);
-    expect(cache.set).toHaveBeenCalledWith('model2;id=2' as Key, expect.anything(), 7200);
-  });
-
-  it('should throw error when TTL is missing in config', async () => {
-    const wrap = compose([
-      withModels(new Map()),
-      // No TTL configured for cache-first or default
-      withCache({} as CacheConfig, cache),
-    ]);
-
-    const ctx = wrap(new Context('request'));
-
-    const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-    model.displayName = 'model';
-    model.cacheStrategy = CacheFirst;
-
-    await expect(ctx.request(model, {id: 1})).rejects.toThrow(
-      'TTL for "cache-first" strategy is not configured',
-    );
-  });
-
-  it('should throw error when TTL is not a number', async () => {
-    // Create context with invalid TTL type (string instead of number)
-    const wrap = compose([
-      withModels(new Map()),
-      withCache({default: {ttl: 'invalid' as unknown as number}} as CacheConfig, cache),
-    ]);
-    const ctx = wrap(new Context('request'));
-
-    const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-    model.displayName = 'model';
-    // Use strategy without .with() to rely on config TTL
-    model.cacheStrategy = CacheFirst;
-
-    await expect(ctx.request(model, {id: 1})).rejects.toThrow(
-      'TTL for "cache-first" strategy is not configured',
-    );
-  });
-
-  it('should throw error when TTL is not positive', async () => {
-    const wrap = compose([withModels(new Map()), withCache({default: {ttl: 0}}, cache)]);
-
-    const ctx = wrap(new Context('request'));
-
-    const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-    model.displayName = 'model';
-    model.cacheStrategy = CacheFirst.with({ttl: 0});
-
-    await expect(ctx.request(model, {id: 1})).rejects.toThrow(
-      'TTL for "cache-first" strategy must be a positive number',
-    );
+        const result = await ctx2.request(model, {id: 1});
+        expect(result).toEqual({result: 2});
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+        vi.useRealTimers();
+      }
+    });
   });
 });
 
@@ -523,25 +674,6 @@ describe('Cache strategies behavior', () => {
       expect(result2).toEqual({result: 2});
       expect(model).toBeCalledTimes(2); // Model called again
       expect(cache.set).not.toHaveBeenCalled(); // Still no caching
-    });
-
-    it('should merge strategy config with cache config', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-
-      // Strategy with custom TTL should override default
-      const customTTL = 1800; // 30 minutes
-      model.cacheStrategy = CacheFirst.with({ttl: customTTL});
-
-      // First call should cache with custom TTL
-      await ctx.request(model, {id: 1});
-
-      // Check that cache was set with custom TTL (not default 3600)
-      const cacheKey = 'model;id=1' as any;
-      expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
-      expect(cache.set).not.toHaveBeenCalledWith(cacheKey, expect.anything(), 3600);
     });
   });
 

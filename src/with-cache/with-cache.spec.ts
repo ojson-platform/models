@@ -285,25 +285,6 @@ describe('withCache', () => {
       expect(model).toBeCalledTimes(2); // Model called again
       expect(cache.set).not.toHaveBeenCalled(); // Still no caching
     });
-
-    it('should merge strategy config with cache config', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-
-      // Strategy with custom TTL should override default
-      const customTTL = 1800; // 30 minutes
-      model.cacheStrategy = CacheFirst.with({ttl: customTTL});
-
-      // First call should cache with custom TTL
-      await ctx.request(model, {id: 1});
-
-      // Check that cache was set with custom TTL (not default 3600)
-      const cacheKey = 'model;id=1' as any;
-      expect(cache.set).toHaveBeenCalledWith(cacheKey, {result: 1}, customTTL);
-      expect(cache.set).not.toHaveBeenCalledWith(cacheKey, expect.anything(), 3600);
-    });
   });
 
   describe('disableCache propagation', () => {
