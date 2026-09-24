@@ -116,6 +116,59 @@ spec('cache-first', () => {
   });
 });
 
+function cacheOnlyContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+  return wrap(new Context('request'));
+}
+
+spec('cache-only', () => {
+  requirement('Попадание возвращает сохранённое значение', () => {
+    scenario('Другой запрос получает сохранённое значение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheOnlyContext(cache);
+        const ctx2 = cacheOnlyContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx1.request(model, {id: 1});
+        expect(model).toBeCalledTimes(1);
+
+        model.cacheStrategy = CacheOnly;
+
+        const result = await ctx2.request(model, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Промах не выполняет Model', () => {
+    scenario('Записи нет', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheOnlyContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheOnly;
+
+        const result = await ctx.request(model, {id: 1});
+        expect(result).toBeUndefined();
+        expect(model).toBeCalledTimes(0);
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 describe('Strategy.with()', () => {
   let cache: TrackingCacheProvider;
 
@@ -493,27 +546,6 @@ describe('Cache strategies behavior', () => {
   });
 
   describe('CacheOnly', () => {
-    it('should return cached value on cache hit', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // First call caches the value
-      await ctx1.request(model, {id: 1});
-      expect(model).toBeCalledTimes(1);
-
-      // Switch to CacheOnly strategy
-      model.cacheStrategy = CacheOnly;
-
-      // Second call in different context should return cached value
-      const result = await ctx2.request(model, {id: 1});
-      expect(result).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1); // Model not called again
-    });
-
     it('should return undefined on cache miss', async () => {
       const ctx = context();
 
@@ -525,20 +557,6 @@ describe('Cache strategies behavior', () => {
       const result = await ctx.request(model, {id: 1});
       expect(result).toBeUndefined();
       expect(model).toBeCalledTimes(0); // Model never called
-    });
-
-    it('should not execute model even if cache is empty', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-      model.displayName = 'model';
-      model.cacheStrategy = CacheOnly;
-
-      // CacheOnly only reads from cache, never executes model
-      const result = await ctx.request(model, {id: 1});
-      expect(result).toBeUndefined();
-      expect(model).toBeCalledTimes(0);
-      expect(cache.set).not.toHaveBeenCalled();
     });
   });
 
