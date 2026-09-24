@@ -88,6 +88,7 @@
   "devDependencies": {
     "@fission-ai/openspec": "1.2.0",
     "@ojson/infra": "^1.0.1",
+    "@ojson/spec-coverage": "0.0.1",
     "@opentelemetry/context-async-hooks": "^2.2.0",
     "@opentelemetry/sdk-trace-base": "^2.2.0",
     "@types/node": "^25.2.3",
@@ -95,5 +96,10 @@
     "lint-staged": "^16.2.7",
     "vitest-when": "^0.10.0"
   },
-  "packageManager": "pnpm@10.30.0"
+  "packageManager": "pnpm@10.30.0",
+  "pnpm": {
+    "patchedDependencies": {
+      "@ojson/spec-coverage@0.0.1": "patches/@ojson__spec-coverage@0.0.1.patch"
+    }
+  }
 }

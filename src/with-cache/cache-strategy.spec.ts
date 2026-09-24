@@ -1,6 +1,7 @@
 import type {Key} from '../types';
 import type {CacheConfig, WithCacheModel} from './types';
 
+import {requirement, scenario, spec} from '@ojson/spec-coverage';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {Context} from '../context';
@@ -10,6 +11,110 @@ import {compose} from '../utils';
 import {StaleWhileRevalidate, CacheFirst, CacheOnly, NetworkOnly} from './cache-strategy';
 import {withCache} from './with-cache';
 import {TrackingCacheProvider} from './__tests__/cache-provider';
+
+function cacheFirstContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+  return wrap(new Context('request'));
+}
+
+spec('cache-first', () => {
+  requirement('Попадание не выполняет Model и не пишет снова', () => {
+    scenario('Другой запрос берёт сохранённое значение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheFirstContext(cache);
+        const ctx2 = cacheFirstContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx1.request(model, {id: 1});
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Промах выполняет Model и сохраняет результат', () => {
+    scenario('Первое обращение сохраняет результат', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheFirstContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        const result1 = await ctx.request(model, {id: 1});
+        expect(result1).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+        expect(cache.set).toHaveBeenCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Ошибка Model не сохраняется', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheFirstContext(cache);
+
+        const error = new Error('Model error');
+        const model = vi.fn(() => {
+          throw error;
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
+
+        expect(cache.set).toHaveBeenCalledTimes(0);
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
+        expect(model).toBeCalledTimes(2);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Ошибка записи не меняет ответ', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheFirstContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        (cache.set as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+          throw new Error('Cache write failed');
+        });
+
+        const result = await ctx.request(model, {test: 1});
+        expect(result).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
 
 describe('Strategy.with()', () => {
   let cache: TrackingCacheProvider;
@@ -228,32 +333,6 @@ describe('Cache strategies behavior', () => {
       expect(model).toBeCalledTimes(2);
     });
 
-    it('should return cached value without calling model on cache hit', async () => {
-      const ctx1 = context();
-      const ctx2 = context();
-
-      let inc = 1;
-      const model = vi.fn(() => {
-        return {result: inc++};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // First call in first context - cache miss, model executes
-      const result1 = await ctx1.request(model, {id: 1});
-      expect(result1).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1);
-      expect(cache.set).toHaveBeenCalledTimes(1);
-
-      // Second call in second context - cache hit, model not called
-      // Use different context to avoid withModels memoization and test real caching
-      const result2 = await ctx2.request(model, {id: 1});
-      expect(result2).toEqual({result: 1});
-      expect(model).toBeCalledTimes(1); // Model not called again
-      expect(cache.set).toHaveBeenCalledTimes(1); // Cache not updated
-    });
-
     it('should create different cache keys for different props', async () => {
       const ctx1 = context();
       const ctx2 = context();
@@ -283,28 +362,6 @@ describe('Cache strategies behavior', () => {
       expect(result1Cached).toEqual({result: 1, id: 1});
       expect(result2Cached).toEqual({result: 2, id: 2});
       expect(model).toBeCalledTimes(2); // Model no longer called
-    });
-
-    it('should not cache result when model throws error', async () => {
-      const ctx = context();
-
-      const error = new Error('Model error');
-      const model = vi.fn(() => {
-        throw error;
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // Model throws error
-      await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
-
-      // Error should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Error should repeat on second call
-      await expect(ctx.request(model, {test: 1})).rejects.toThrow('Model error');
-      expect(model).toBeCalledTimes(2);
     });
 
     it('should not cache Dead result in CacheFirst strategy', async () => {
