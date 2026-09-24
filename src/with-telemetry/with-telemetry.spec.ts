@@ -1,5 +1,6 @@
 import type {Model} from '../types';
 
+import {requirement, scenario, spec} from '@ojson/spec-coverage';
 import {describe, expect, it, vi, beforeAll, afterAll} from 'vitest';
 import {SpanStatusCode, trace, context as otelContext, type Span} from '@opentelemetry/api';
 import {NodeSDK} from '@opentelemetry/sdk-node';
@@ -161,109 +162,109 @@ describe('withTelemetry', () => {
     return self;
   }
 
-  describe('span-end-at-call', () => {
-    it('End with a numeric end time', () => {
-      const callMoment = 9_000_001;
-      const staleEndTime = 1_000;
-      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+  spec('span-end', () => {
+    requirement('Span ends when the context ends or fails', () => {
+      scenario('End with a numeric end time', () => {
+        const callMoment = 9_000_001;
+        const staleEndTime = 1_000;
+        vi.spyOn(Date, 'now').mockReturnValue(callMoment);
 
-      const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+        const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        vi.spyOn(span, 'isRecording').mockReturnValue(true);
 
-      ctx.end();
+        ctx.end();
 
-      expect(endSpy).toHaveBeenCalledTimes(1);
-      expect(endSpy).toHaveBeenCalledWith(callMoment);
-      expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith(callMoment);
+        expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
 
-      vi.spyOn(Date, 'now').mockRestore();
-    });
+        vi.spyOn(Date, 'now').mockRestore();
+      });
 
-    it('Fail with a numeric end time', () => {
-      const callMoment = 9_000_002;
-      const staleEndTime = 2_000;
-      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+      scenario('Fail with a numeric end time', () => {
+        const callMoment = 9_000_002;
+        const staleEndTime = 2_000;
+        vi.spyOn(Date, 'now').mockReturnValue(callMoment);
 
-      const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+        const ctx = wrapBaseContext(createBaseContextWithNumericEndTime(staleEndTime));
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        vi.spyOn(span, 'isRecording').mockReturnValue(true);
 
-      ctx.fail(new Error('fail'));
+        ctx.fail(new Error('fail'));
 
-      expect(endSpy).toHaveBeenCalledTimes(1);
-      expect(endSpy).toHaveBeenCalledWith(callMoment);
-      expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith(callMoment);
+        expect(endSpy).not.toHaveBeenCalledWith(staleEndTime);
 
-      vi.spyOn(Date, 'now').mockRestore();
-    });
+        vi.spyOn(Date, 'now').mockRestore();
+      });
 
-    it('End with no numeric end time', () => {
-      const callMoment = 9_000_003;
-      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+      scenario('End with no numeric end time', () => {
+        const callMoment = 9_000_003;
+        vi.spyOn(Date, 'now').mockReturnValue(callMoment);
 
-      const ctx = wrapBaseContext(createBareBaseContext());
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+        const ctx = wrapBaseContext(createBareBaseContext());
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        vi.spyOn(span, 'isRecording').mockReturnValue(true);
 
-      ctx.end();
+        ctx.end();
 
-      expect(endSpy).toHaveBeenCalledTimes(1);
-      expect(endSpy).toHaveBeenCalledWith(callMoment);
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith(callMoment);
 
-      vi.spyOn(Date, 'now').mockRestore();
-    });
+        vi.spyOn(Date, 'now').mockRestore();
+      });
 
-    it('Fail with no numeric end time', () => {
-      const callMoment = 9_000_004;
-      vi.spyOn(Date, 'now').mockReturnValue(callMoment);
+      scenario('Fail with no numeric end time', () => {
+        const callMoment = 9_000_004;
+        vi.spyOn(Date, 'now').mockReturnValue(callMoment);
 
-      const ctx = wrapBaseContext(createBareBaseContext());
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording').mockReturnValue(true);
+        const ctx = wrapBaseContext(createBareBaseContext());
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        vi.spyOn(span, 'isRecording').mockReturnValue(true);
 
-      ctx.fail(new Error('fail'));
+        ctx.fail(new Error('fail'));
 
-      expect(endSpy).toHaveBeenCalledTimes(1);
-      expect(endSpy).toHaveBeenCalledWith(callMoment);
+        expect(endSpy).toHaveBeenCalledTimes(1);
+        expect(endSpy).toHaveBeenCalledWith(callMoment);
 
-      vi.spyOn(Date, 'now').mockRestore();
-    });
-  });
+        vi.spyOn(Date, 'now').mockRestore();
+      });
 
-  describe('span-end-not-recording', () => {
-    it('End after the span has stopped recording', () => {
-      const ctx = createContext();
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
+      scenario('End after the span has stopped recording', () => {
+        const ctx = createContext();
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
 
-      ctx.end();
-      expect(endSpy).toHaveBeenCalledTimes(1);
+        ctx.end();
+        expect(endSpy).toHaveBeenCalledTimes(1);
 
-      endSpy.mockClear();
-      ctx.end();
-      expect(endSpy).not.toHaveBeenCalled();
-    });
+        endSpy.mockClear();
+        ctx.end();
+        expect(endSpy).not.toHaveBeenCalled();
+      });
 
-    it('Fail after the span has stopped recording', () => {
-      const ctx = createContext();
-      const span = getSpan(ctx)!;
-      const endSpy = vi.spyOn(span, 'end');
-      const setStatusSpy = vi.spyOn(span, 'setStatus');
-      vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
+      scenario('Fail after the span has stopped recording', () => {
+        const ctx = createContext();
+        const span = getSpan(ctx)!;
+        const endSpy = vi.spyOn(span, 'end');
+        const setStatusSpy = vi.spyOn(span, 'setStatus');
+        vi.spyOn(span, 'isRecording').mockReturnValueOnce(true).mockReturnValueOnce(false);
 
-      ctx.end();
-      expect(endSpy).toHaveBeenCalledTimes(1);
+        ctx.end();
+        expect(endSpy).toHaveBeenCalledTimes(1);
 
-      endSpy.mockClear();
-      ctx.fail(new Error('fail after span stopped'));
-      expect(endSpy).not.toHaveBeenCalled();
-      expect(setStatusSpy).not.toHaveBeenCalled();
+        endSpy.mockClear();
+        ctx.fail(new Error('fail after span stopped'));
+        expect(endSpy).not.toHaveBeenCalled();
+        expect(setStatusSpy).not.toHaveBeenCalled();
+      });
     });
   });
 
