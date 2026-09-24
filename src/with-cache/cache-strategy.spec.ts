@@ -475,6 +475,226 @@ spec('cache-ttl', () => {
   });
 });
 
+function cacheZipDefaultContext(cache: TrackingCacheProvider) {
+  const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+
+  return wrap(new Context('request'));
+}
+
+async function waitForCacheSet(cache: TrackingCacheProvider) {
+  await vi.waitFor(() => {
+    expect(cache.set).toHaveBeenCalled();
+  });
+}
+
+spec('cache-zip', () => {
+  requirement('Сжатие включается вместе со стратегией', () => {
+    scenario('По умолчанию значение хранится как есть', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheZipDefaultContext(cache);
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await ctx.request(model, {id: 1});
+
+        expect(cache.set).toHaveBeenCalledWith('model;id=1' as Key, {result: 1}, 3600);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Флаг стратегии включает сжатие', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([
+          withModels(new Map()),
+          withCache({default: {ttl: 3600, zip: true}}, cache),
+        ]);
+        const ctx1 = wrap(new Context('request'));
+        const ctx2 = wrap(new Context('request-2'));
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({zip: true});
+
+        await ctx1.request(model, {id: 1});
+        await waitForCacheSet(cache);
+
+        const stored = (cache.set as ReturnType<typeof vi.fn>).mock.calls[0][1];
+        expect(typeof stored).toBe('string');
+
+        const result2 = await ctx2.request(model, {id: 1});
+        expect(result2).toEqual({result: 1});
+        expect(model).toBeCalledTimes(1);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Выключенный флаг стратегии важнее включённого по умолчанию', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([
+          withModels(new Map()),
+          withCache({default: {ttl: 3600, zip: true}}, cache),
+        ]);
+        const ctx = wrap(new Context('request'));
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst.with({zip: false});
+
+        await ctx.request(model, {id: 1});
+
+        expect(cache.set).toHaveBeenCalledWith('model;id=1' as Key, {result: 1}, 3600);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Выбор сжатия остаётся в общей конфигурации', () => {
+    scenario('Следующая Model наследует чужое сжатие', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheZipDefaultContext(cache);
+
+        const model1 = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model1.displayName = 'model1';
+        model1.cacheStrategy = CacheFirst.with({zip: true});
+
+        const model2 = vi.fn(() => ({result: 2})) as unknown as WithCacheModel;
+        model2.displayName = 'model2';
+        model2.cacheStrategy = CacheFirst;
+
+        await ctx.request(model1, {id: 1});
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        await ctx.request(model2, {id: 2});
+        await waitForCacheSet(cache);
+
+        const stored = (cache.set as ReturnType<typeof vi.fn>).mock.calls[0][1];
+        expect(typeof stored).toBe('string');
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Чтение следует флагу читающей стратегии', () => {
+    scenario('Чтение без сжатия не раскрывает запись', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheZipDefaultContext(cache);
+        const ctx2 = cacheZipDefaultContext(cache);
+
+        const writeModel = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        writeModel.displayName = 'model';
+        writeModel.cacheStrategy = CacheFirst.with({zip: true});
+
+        await ctx1.request(writeModel, {id: 1});
+        await waitForCacheSet(cache);
+        const stored = (cache.set as ReturnType<typeof vi.fn>).mock.calls[0][1];
+        expect(typeof stored).toBe('string');
+
+        const readModel = vi.fn(() => ({result: 99})) as unknown as WithCacheModel;
+        readModel.displayName = 'model';
+        readModel.cacheStrategy = CacheOnly;
+
+        const result = await ctx2.request(readModel, {id: 1});
+        expect(result).toBe(stored);
+        expect(readModel).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Нераскрываемый текст возвращается как есть', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheZipDefaultContext(cache);
+        const ctx2 = cacheZipDefaultContext(cache);
+
+        const writeModel = vi.fn(() => 'not-valid-deflate-base64') as unknown as WithCacheModel;
+        writeModel.displayName = 'model';
+        writeModel.cacheStrategy = CacheFirst;
+
+        await ctx1.request(writeModel, {id: 1});
+
+        const readModel = vi.fn(() => 'other') as unknown as WithCacheModel;
+        readModel.displayName = 'model';
+        readModel.cacheStrategy = CacheOnly.with({zip: true});
+
+        const result = await ctx2.request(readModel, {id: 1});
+        expect(result).toBe('not-valid-deflate-base64');
+        expect(readModel).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Не-текст при включённом сжатии возвращается как есть', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx1 = cacheZipDefaultContext(cache);
+        const ctx2 = cacheZipDefaultContext(cache);
+
+        const writeModel = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        writeModel.displayName = 'model';
+        writeModel.cacheStrategy = CacheFirst;
+
+        await ctx1.request(writeModel, {id: 1});
+
+        const readModel = vi.fn(() => ({result: 99})) as unknown as WithCacheModel;
+        readModel.displayName = 'model';
+        readModel.cacheStrategy = CacheOnly.with({zip: true});
+
+        const result = await ctx2.request(readModel, {id: 1});
+        expect(result).toEqual({result: 1});
+        expect(readModel).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Фоновое обновление пишет в выбранной форме', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const ctx = cacheZipDefaultContext(cache);
+
+        let inc = 1;
+        const model = vi.fn(() => {
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate.with({zip: true});
+
+        const cacheKey = 'model;id=1' as Key;
+
+        await ctx.request(model, {id: 1});
+        await waitForCacheSet(cache);
+        expect(typeof (cache.set as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe('string');
+
+        await ctx.request(model, {id: 1});
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(model).toBeCalledTimes(2);
+        const backgroundSet = (cache.set as ReturnType<typeof vi.fn>).mock.calls.find(
+          call => call[0] === cacheKey && call[1] !== undefined && typeof call[1] === 'string',
+        );
+        expect(backgroundSet).toBeDefined();
+        expect(backgroundSet![1]).not.toEqual({result: 2});
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 describe('Cache strategies behavior', () => {
   let cache: TrackingCacheProvider;
 
