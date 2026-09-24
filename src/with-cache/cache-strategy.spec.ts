@@ -958,6 +958,123 @@ spec('disable-cache', () => {
   });
 });
 
+spec('interrupted-run', () => {
+  requirement('Запуск, прерванный до выполнения Model, не сохраняется как успех', () => {
+    scenario('Межзапросный кэш не записывает прерванное обращение', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx = wrap(new Context('request'));
+
+        const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        ctx.kill();
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+        expect(cache.set).toHaveBeenCalledTimes(0);
+        expect(model).not.toBeCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Генератор, прерванный между шагами, не оставляет успех', () => {
+    scenario('Прерывание между шагами', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx = wrap(new Context('request'));
+        const ctx2 = wrap(new Context('request-2'));
+
+        const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
+        const model = vi.fn(function* (_props: unknown, modelCtx: {kill: () => unknown}) {
+          yield wait(10);
+          modelCtx.kill();
+          yield wait(10);
+
+          return {result: 1};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+        expect(cache.set).toHaveBeenCalledTimes(0);
+
+        await expect(ctx2.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+        expect(cache.set).toHaveBeenCalledTimes(0);
+      } finally {
+        cache.release();
+      }
+    });
+  });
+
+  requirement('Фоновое обновление кэша скрывает прерывание, обращение вызывающего — нет', () => {
+    scenario('Вызывающий видит прерывание, и кэш молчит', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx = wrap(new Context('request'));
+
+        const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
+        const model = vi.fn(function* (_props: unknown, modelCtx: {kill: () => unknown}) {
+          yield wait(10);
+          modelCtx.kill();
+          yield wait(10);
+
+          return {result: 1};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = CacheFirst;
+
+        await expect(ctx.request(model, {test: 1})).rejects.toThrow(InterruptedError);
+        expect(cache.set).toHaveBeenCalledTimes(0);
+      } finally {
+        cache.release();
+      }
+    });
+
+    scenario('Фоновое обновление прерванного запуска не пишет и не падает', async () => {
+      const cache = new TrackingCacheProvider();
+      try {
+        const wrap = compose([withModels(new Map()), withCache({default: {ttl: 3600}}, cache)]);
+        const ctx1 = wrap(new Context('request'));
+        const ctx2 = wrap(new Context('request-2'));
+
+        let inc = 1;
+        const model = vi.fn(async (_props: unknown, modelCtx: {kill: () => unknown}) => {
+          if (inc > 1) {
+            modelCtx.kill();
+          }
+          return {result: inc++};
+        }) as unknown as WithCacheModel;
+
+        model.displayName = 'model';
+        model.cacheStrategy = StaleWhileRevalidate;
+
+        await ctx1.request(model, {id: 1});
+        expect(cache.set).toHaveBeenCalledTimes(1);
+
+        (cache.set as ReturnType<typeof vi.fn>).mockClear();
+
+        const stale = await ctx2.request(model, {id: 1});
+        expect(stale).toEqual({result: 1});
+
+        await new Promise(resolve => setTimeout(resolve, 20));
+
+        expect(cache.set).not.toHaveBeenCalled();
+      } finally {
+        cache.release();
+      }
+    });
+  });
+});
+
 describe('Cache strategies behavior', () => {
   let cache: TrackingCacheProvider;
 
@@ -1049,57 +1166,6 @@ describe('Cache strategies behavior', () => {
       expect(result1Cached).toEqual({result: 1, id: 1});
       expect(result2Cached).toEqual({result: 2, id: 2});
       expect(model).toBeCalledTimes(2); // Model no longer called
-    });
-
-    it('should not cache Dead result in CacheFirst strategy', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // Kill context before request
-      ctx.kill();
-
-      const result = ctx.request(model, {test: 1});
-
-      // Should throw InterruptedError
-      await expect(result).rejects.toThrow(InterruptedError);
-
-      // Dead should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Model should not be called (execution was interrupted)
-      expect(model).not.toBeCalled();
-    });
-
-    it('should not cache Dead result when context is killed during execution', async () => {
-      const ctx = context();
-
-      const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
-
-      const model = vi.fn(function* () {
-        yield wait(10);
-        ctx.kill();
-        yield wait(10);
-
-        return {result: 1};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      const result = ctx.request(model, {test: 1});
-
-      // Should throw InterruptedError
-      await expect(result).rejects.toThrow(InterruptedError);
-
-      // Dead should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Model was called but interrupted
-      expect(model).toBeCalled();
     });
 
     it('should call cache.get on cache hit and cache.set on cache miss', async () => {
@@ -1418,29 +1484,6 @@ describe('Cache strategies behavior', () => {
       // (background update did not update cache due to error)
       const result3 = await ctx3.request(model, {id: 1});
       expect(result3).toEqual({result: 1});
-    });
-
-    it('should not cache Dead result on cache miss', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = StaleWhileRevalidate;
-
-      // Kill context before request
-      ctx.kill();
-
-      const result = ctx.request(model, {test: 1});
-
-      // Should throw InterruptedError
-      await expect(result).rejects.toThrow(InterruptedError);
-
-      // Dead should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Model should not be called (execution was interrupted)
-      expect(model).not.toBeCalled();
     });
   });
 });

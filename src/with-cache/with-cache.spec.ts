@@ -151,57 +151,6 @@ describe('withCache', () => {
       expect(model).toBeCalledTimes(2);
     });
 
-    it('should not cache Dead result in CacheFirst strategy', async () => {
-      const ctx = context();
-
-      const model = vi.fn(() => ({result: 1})) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      // Kill context before request
-      ctx.kill();
-
-      const result = ctx.request(model, {test: 1});
-
-      // Should throw InterruptedError
-      await expect(result).rejects.toThrow(InterruptedError);
-
-      // Dead should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Model should not be called (execution was interrupted)
-      expect(model).not.toBeCalled();
-    });
-
-    it('should not cache Dead result when context is killed during execution', async () => {
-      const ctx = context();
-
-      const wait = (delay: number) => new Promise(resolve => setTimeout(resolve, delay));
-
-      const model = vi.fn(function* () {
-        yield wait(10);
-        ctx.kill();
-        yield wait(10);
-
-        return {result: 1};
-      }) as unknown as WithCacheModel;
-
-      model.displayName = 'model';
-      model.cacheStrategy = CacheFirst;
-
-      const result = ctx.request(model, {test: 1});
-
-      // Should throw InterruptedError
-      await expect(result).rejects.toThrow(InterruptedError);
-
-      // Dead should not be cached
-      expect(cache.set).toHaveBeenCalledTimes(0);
-
-      // Model was called but interrupted
-      expect(model).toBeCalled();
-    });
-
     it('should call cache.get on cache hit and cache.set on cache miss', async () => {
       const ctx1 = context();
       const ctx2 = context();
